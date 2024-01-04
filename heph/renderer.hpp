@@ -10,16 +10,13 @@ public:
     VkInstance instance;
     VkDevice device;
 
-
     Renderer() = delete;
-    Renderer(std::string name);
-
-
-
+    Renderer(const std::string name);
 
 private:
     void init_instance(std::string name);
+    void init_pdevice();
+    void init_swapchain();
 
-
-
+    void destroy();
 };

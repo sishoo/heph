@@ -1,13 +1,23 @@
+#include "renderer.hpp"
+#include "renderer.cpp"
 
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+
 #include <stdio.h>
+#include <string>
 
 
 // clang++ -o main main.cpp -lglfw -lvulkan
 
 int main() {
+
+    const std::string name = "Bro";
+    Renderer render = Renderer(name);
+
+
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
