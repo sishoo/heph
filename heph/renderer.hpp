@@ -11,8 +11,8 @@ public:
     VkDevice device;
 
 
-    Renderer();
-
+    Renderer() = delete;
+    Renderer(std::string name);
 
 
 
