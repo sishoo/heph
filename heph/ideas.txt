@@ -1,0 +1,16 @@
+https://www.advances.realtimerendering.com/s2015/aaltonenhaar_siggraph2015_combined_final_footer_220dpi.pdf
+
+
+coarse frustum culling on cpu with giga quad tree
+
+have a global hash table and a "point hash" where the point in the quadtree has a hash and the 
+creatures data is in the hash table. maybe also have a reverse where there is an adjacency list and the hash
+table holds the index and you can directly go to the quadtree node
+
+
+in the quad tree have the count also be a bit thing that tells you which of the children survives
+00
+01
+10
+11
+the order of them tells you the order of the offset from child ptr

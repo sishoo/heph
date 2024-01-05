@@ -113,10 +113,14 @@ void Renderer::init_pdevice()
     uint32_t physical_device_count = 0;
     vkEnumeratePhysicalDevices(instance, &physical_device_count, nullptr);
 
+    if (physical_device_count == 0)
+        HEPH_THROW_ERROR_UNRECOVERABLE("There are no physical devices that support Vulkan.");
+
     std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
     vkEnumeratePhysicalDevices(instance, &physical_device_count, physical_devices.data());
 
     /* =Pick the best physical device= */
+    VkPhysicalDevice best_device = nullptr;
     for (VkPhysicalDevice pdevice : physical_devices)
     {
         uint32_t queue_family_property_count = 0;
@@ -131,10 +135,18 @@ void Renderer::init_pdevice()
             bool supports_graphics = info.queueFlags & 0b1;
         }
     }
+
+    if (!best_device)
+        HEPH_THROW_ERROR_UNRECOVERABLE("Your device supports Vulkan, but is unsuitable to run Hephaestus.");
+
+
+
+        
     /*=================================*/
 }
 
 void Renderer::destroy()
 {
+    vkDestroyInstance(instance, nullptr);
 
 }
