@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <string>
+#include <iostream>
 
 
 Renderer::Renderer(const std::string name)
@@ -30,7 +31,7 @@ void Renderer::init_instance(const std::string name)
     create_info.pApplicationInfo = &application_info;
 
 
-    /* =Getting requested extensions= */
+    /* = Getting requested extensions = */
     uint32_t requested_extension_count = 0;
     std::vector<const char *> requested_extensions;
 
@@ -49,7 +50,7 @@ void Renderer::init_instance(const std::string name)
     #endif
 
 
-    /* =Getting available extensions= */
+    /* = Getting available extensions = */
     uint32_t available_extension_count = 0;
     vkEnumerateInstanceExtensionProperties(nullptr, &available_extension_count, nullptr);
     printf("THERE ARE %i extensions\n", available_extension_count);
@@ -57,7 +58,7 @@ void Renderer::init_instance(const std::string name)
     vkEnumerateInstanceExtensionProperties(nullptr, &available_extension_count, available_extensions.data());
 
 
-    /* =Verifying extensions are available= */
+    /* = Verifying extensions are available = */
     for (size_t i = 0; i < requested_extension_count; i++)
     {
         bool extension_available = false;
@@ -78,7 +79,7 @@ void Renderer::init_instance(const std::string name)
     create_info.ppEnabledExtensionNames = requested_extensions.data();
 
 
-    /* =Getting required layers= */
+    /* = Getting required layers = */
     uint32_t enabled_layer_count = 0;
     std::vector<const char*> enabled_layers;
     #if HEPH_VALIDATE
@@ -93,7 +94,7 @@ void Renderer::init_instance(const std::string name)
     create_info.ppEnabledLayerNames = enabled_layers.data();
 
 
-    /* =Getting create flags= */
+    /* = Getting create flags = */
     uint32_t create_flags = 0;
     #ifdef HEPH_OSX
         create_flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
@@ -119,8 +120,10 @@ void Renderer::init_pdevice()
     std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
     vkEnumeratePhysicalDevices(instance, &physical_device_count, physical_devices.data());
 
-    /* =Pick the best physical device= */
+    /* = Pick the best physical device = */
     VkPhysicalDevice best_device = nullptr;
+
+    /* = First pass to see if they support the queues and surface we need = */
     for (VkPhysicalDevice pdevice : physical_devices)
     {
         uint32_t queue_family_property_count = 0;
@@ -132,21 +135,74 @@ void Renderer::init_pdevice()
         for (size_t i = 0; i < queue_family_property_count; i++)
         {
             VkQueueFamilyProperties info = queue_family_properties[i];
-            bool supports_graphics = info.queueFlags & 0b1;
+
+        }
+    }
+
+    /* = Second pass to choose the best devices based off physical speed = */
+
+    if (physical_devices.size() == 0)
+        HEPH_THROW_ERROR_UNRECOVERABLE("Your device supports Vulkan, but is unsuitable to run Hephaestus.");
+
+    if (physical_devices.size() == 1) 
+    {
+        pdevice = physical_devices[0];
+        return;
+    }
+
+    uint32_t best_score = 0;
+    int best_index = 0;
+    uint32_t device_scores[5] = { 2 , 4 , 5 , 3 , 1 };
+    for (uint32_t i = 0; VkPhysicalDevice device : physical_devices)
+    {
+        VkPhysicalDeviceProperties properties = {};
+        vkGetPhysicalDeviceProperties(device, &properties);
+        uint32_t device_score = device_scores[(uint32_t) properties.deviceType];
+        if (device_score > best_score)
+        {
+            best_score = device_score;
+            best_index = i;
         }
     }
 
     if (!best_device)
         HEPH_THROW_ERROR_UNRECOVERABLE("Your device supports Vulkan, but is unsuitable to run Hephaestus.");
 
+    #if HEPH_VALIDATE
+        printf("Using physical device: %s\n", best_device.name);
+    #endif
+}
+
+void Renderer::init_device()
+{   
 
 
-        
-    /*=================================*/
+
+
+    VkDeviceQueueCreateInfo queue_info = {};
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+
+
+
+
+
+
+    VkDeviceCreateInfo device_info = {};
+    device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_info
+
+
+    VkDevice device = nullptr;
+    vkCreateDevice(pdevice, &device_info, nullptr, &device);
 }
 
 void Renderer::destroy()
-{
+{   
+    /* = Make sure the device work is completed before destroying stuff = */
+    vkDeviceWaitIdle(device);
+
+
+    vkDestroyDevice(device, nullptr);   
     vkDestroyInstance(instance, nullptr);
 
 }
