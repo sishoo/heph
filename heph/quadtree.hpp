@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <vector>
 
-#include "vec3.hpp"
+#include "vec.hpp"
 
 
 #define CONTAINS(x, range_start, range_len) (range_start <= x && x < (range_start + range_len))

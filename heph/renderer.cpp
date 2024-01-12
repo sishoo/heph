@@ -169,7 +169,7 @@ void Renderer::init_pdevice()
         HEPH_THROW_ERROR_UNRECOVERABLE("Your device supports Vulkan, but is unsuitable to run Hephaestus.");
 
     #if HEPH_VALIDATE
-        printf("Using physical device: %s\n", best_device.name);
+        printf("Using physical device: %s\n", );
     #endif
 }
 
@@ -189,7 +189,7 @@ void Renderer::init_device()
 
     VkDeviceCreateInfo device_info = {};
     device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_info
+
 
 
     VkDevice device = nullptr;
