@@ -1,0 +1,98 @@
+
+
+
+
+
+
+
+
+
+CURRENT OBJECTIVE:
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <chrono>
+#include <array>
+
+
+#define HEPH_MODEL_HEADER_SIZE_BYTES sizeof(LoadingInfo)
+
+typedef struct LoadingInfo
+{
+    uint32_t vertex_size;
+    uint32_t index_size;
+    uint32_t vertex_normal_size;
+} LoadingInfo;
+
+int main()
+{
+    FILE *write_to = fopen("/Users/macfarrell/vs code projects/test_cpp/temp.bin", "wb");
+    // uint32_t buffer[] = {
+    //     36, 12, 36, // header things
+    //     10, 10, 10, // v1
+    //     10, 11, 19, // v2
+    //     80, 40, 12, // v3
+    //     1, 2, 3,    // f1
+    //     1, 1, 1,    // vn1
+    //     1, 1, 1,    // vn2
+    //     1, 1, 1     // vn3
+    // };
+
+    std::array<uint32_t, 250000> buffer;
+    buffer[0] = 83333;
+    buffer[1] = 83333;
+    buffer[2] = 83333;
+
+
+    fwrite(buffer.data(), sizeof(buffer), 1, write_to);
+    fclose(write_to);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    uint32_t iterations = 10000;
+
+    for (uint32_t i = 0; i < iterations + 1; i++)
+    {
+
+    
+
+        // 0.1 - 0.063
+        FILE *fptr = fopen("/Users/macfarrell/vs code projects/test_cpp/temp.bin", "rb");
+        fseek(fptr, 0, SEEK_END);
+        size_t len = ftell(fptr);
+        rewind(fptr);
+        std::vector<uint32_t> file_buffer;
+        file_buffer.reserve(len);
+
+        std::vector<uint32_t> vertices;
+        vertices.resize(file_buffer[0]);
+        memcpy(vertices.data(), file_buffer.data() + HEPH_MODEL_HEADER_SIZE_BYTES, file_buffer[0]);
+
+        std::vector<uint32_t> indices;
+        indices.resize(file_buffer[1]);
+        memcpy(indices.data(), file_buffer.data() + HEPH_MODEL_HEADER_SIZE_BYTES + file_buffer[0], file_buffer[1]);
+
+        fclose(fptr);
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Duration: " << elapsed.count() << std::endl;
+
+    return 0;
+}
+
+
+
+place the std::vector<float> with Vertex structs because easier
+
+
+
+
+
+PAST OBJECTIVES:
+USE THE MULTIPLE FILES ITS ACTAULLT FASTER
+
+HOLD UP MEMORY MAPPED FILES BOMBOCLASD
+REMOVE THE LOADER MAKE IT SO THAT YOU JUST HAVE THE FREAKING BUFFERS
+
