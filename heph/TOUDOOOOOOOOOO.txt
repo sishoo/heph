@@ -15,7 +15,7 @@ instead of keeping a vertex buffer std vector maybe just have a thing that keep 
 read the file into the mapped memory
 
 
-
+make gpu hash table
 
 
 Make a 'big vec' template thing.
