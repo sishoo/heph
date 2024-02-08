@@ -1,0 +1,101 @@
+https://www.advances.realtimerendering.com/s2015/aaltonenhaar_siggraph2015_combined_final_footer_220dpi.pdf
+
+
+
+
+MOVE AS MUCH ONTO THE GPU AS POSSIBLE 
+
+
+frustum culling on compute shader and write directly to other stuff from there
+
+
+have a concept of "mesh declaration" so you can say how many meshes you want to load and make it 
+easier to preallocate memory or something
+
+
+
+
+
+have a global hash table and a "point hash" where the point in the quadtree has a hash and the 
+creatures data is in the hash table. maybe also have a reverse where there is an adjacency list and the hash
+table holds the index and you can directly go to the quadtree node
+
+
+in the quad tree have the count also be a bit thing that tells you which of the children survives
+00
+01
+10
+11
+the order of them tells you the order of the offset from child ptr
+
+
+
+
+
+
+
+HMODL
+
+
+HEADER:
+v(0,0) i(0,0) newline
+
+
+
++=======+
+-------- 00000001 00001111 00101100 <- magic number
+|______|
+   ^ last 8 bits of the file
+
+
+//headers
+___ <- next N bits are the headers
+v 80 100 <- these bits are the vertices
+f 100 500 <- these bits are the faces
+
++=======+
+
+
+IDEAS:
+ - difference dictionary compress
+ - TRY THE DIFFERENTIAL THING FROM CALC
+
+
+
+remove the 'v's and 'f's to save as many bytes as there are lines
+
+sort the faces so the differential things are ususally smaller
+
+
+
+do the difference between them. because usually there will be things like:
+f 2865 2863 2864
+f 2477 2478 2862
+
+not counting the 'f's it takes 24 bytes (4 * 6).
+
+but if you do the difference between them
+-388 -385 -2
+
+it is 10 bytes.
+
+THEN you could have a 'negative code' 
+which is 3 bits
+
+-388 -385 -2 has all negatives
+so just put a 3 bit code: 
+111 388 385 2
+
+this is 3 bits + 7 bytes
+
+THEN if the lines 
+
+
+
+
+ 
+
+
+
+
+
