@@ -1,0 +1,5 @@
+
+
+
+1) use xaddr to store HMODL info
+2) make load hmodl/obj batch less primative
