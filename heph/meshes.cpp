@@ -60,6 +60,7 @@ Meshes::queue_hmodl(const std::string path)
         HEPH_PRINT_ERROR("Failed to get xattr of: " << path);
         return HephResult::Failure;
     }
+    might screw something up bluddddd
     vertex_tsb += (uint32_t)val[0];
     index_tsb += (uint32_t)val[1];
 
