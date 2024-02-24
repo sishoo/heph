@@ -111,6 +111,7 @@ Meshes::write(char *ptr) const
 		{
 			HEPH_ABORT("Cannot write model vertex data to GPU.");
 		}
+		dont print the msgs and dont abort
 		vertex_ptr += vertex_sb;
 		if (pread(fd, index_ptr, index_sb, vertex_sb) == -1)
 		{
