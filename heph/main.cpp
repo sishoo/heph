@@ -27,5 +27,7 @@ main() {
     r.load_mesh_data();
     r.render_loop();
 
+    change stuff to uint64_t because thats what vkDeviceSize is.
+
     return 0;
 }

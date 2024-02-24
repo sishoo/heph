@@ -135,7 +135,7 @@ static uint32_t
 get_memory_type_index(VkPhysicalDevice pdevice)
 {
     VkPhysicalDeviceMemoryProperties2 pdevice_properties;
-    ZERO_INIT(&pdevice_properties, sizeof(VkPhysicalDeviceMemoryProperties2));
+    memset(&pdevice_properties, 0, sizeof(VkPhysicalDeviceMemoryProperties2));
     pdevice_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     vkGetPhysicalDeviceMemoryProperties2(pdevice, &pdevice_properties);
 
@@ -155,7 +155,7 @@ HephResult
 Renderer::allocate_data_buffer()
 {   
     VkBufferCreateInfo info;
-    ZERO_INIT(&info, sizeof(VkBufferCreateInfo));
+    memset(&info, 0, sizeof(VkBufferCreateInfo));
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     info.size = meshes.size_b();
     info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -171,13 +171,13 @@ Renderer::allocate_data_buffer()
     }
     
     VkMemoryRequirements2 requirements;
-    ZERO_INIT(&requirements, sizeof(VkMemoryRequirements2))
+    memset(&requirements, 0, sizeof(VkMemoryRequirements2));
     get_memory_requirements(ldevice, data_buffer, requirements);
     
     uint32_t index = get_memory_type_index(pdevice);
 
     VkMemoryAllocateInfo allocate_info;
-    ZERO_INIT(&allocate_info, sizeof(VkMemoryAllocateInfo));
+    memset(&allocate_info, 0, sizeof(VkMemoryAllocateInfo));
     allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocate_info.memoryTypeIndex = index;
     allocate_info.allocationSize = meshes.size_b();
@@ -187,6 +187,7 @@ Renderer::allocate_data_buffer()
     {
         HEPH_ABORT("Binding buffer memory failed.");
     }
+
     return HephResult::Success;
 }
 
@@ -195,7 +196,14 @@ Renderer::load_mesh_data()
 {       
     allocate_data_buffer();
     void *ptr = NULL;
-    if (vkMapMemory(ldevice, data_buffer_memory, 0, meshes.size_b(), 0, &ptr) != VK_SUCCESS)
+
+    VkMemoryMapInfoKHR info;
+    memset(&info, 0, sizeof(VkMemoryMapInfoKHR));
+    info.sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO_KHR;
+    info.memory = data_buffer_memory;
+    info.size = meshes.size_b();
+
+    if (vkMapMemory2KHR(ldevice, &info, &ptr) != VK_SUCCESS)
     {
         HEPH_ABORT("Failed to map memory.");
     }
@@ -204,6 +212,7 @@ Renderer::load_mesh_data()
         HEPH_ABORT("Failed to map memory.");
     }
     meshes.write(static_cast<char *>(ptr));
+    
 }
 
 void 

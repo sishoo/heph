@@ -26,7 +26,7 @@ public:
 
     Renderer(const Meshes &meshes);
     ~Renderer();
-REULE OF THREE
+
     void load_mesh_data();
     void render_loop();
 
