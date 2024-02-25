@@ -9,6 +9,10 @@
 #define REQUIRED_QUEUE_FAMILY_BITFLAGS (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT)
 #define REQUIRED_DATA_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
 
+#define VERTEX_SHADER_PATH "heph\\shader\\culler.comp"
+#define FRAGMENT_SHADER_PATH "heph\\shader\\fragment.frag"
+#define CULLER_SHADER_PATH "heph\\shader\\vertex.vert"
+
 Renderer::Renderer(const Meshes &meshes) : meshes(meshes)
 {
         init_instance();
@@ -112,8 +116,7 @@ void Renderer::init_swapchain()
         swapchain = vkb_swapchain.swapchain;
 }
 
-static void
-get_memory_requirements(VkDevice ldevice, VkBuffer buffer, VkMemoryRequirements2 &requirements)
+static void get_memory_requirements(VkDevice ldevice, VkBuffer buffer, VkMemoryRequirements2 &requirements)
 {
         requirements.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
         VkBufferMemoryRequirementsInfo2 info;
@@ -123,8 +126,7 @@ get_memory_requirements(VkDevice ldevice, VkBuffer buffer, VkMemoryRequirements2
         vkGetBufferMemoryRequirements2(ldevice, &info, &requirements);
 }
 
-static uint32_t
-get_memory_type_index(VkPhysicalDevice pdevice)
+static uint32_t get_memory_type_index(VkPhysicalDevice pdevice)
 {
         VkPhysicalDeviceMemoryProperties2 pdevice_properties;
         memset(&pdevice_properties, 0, sizeof(VkPhysicalDeviceMemoryProperties2));
@@ -143,8 +145,7 @@ get_memory_type_index(VkPhysicalDevice pdevice)
         HEPH_ABORT("Cannot find adequate memory type.");
 }
 
-HephResult
-Renderer::allocate_data_buffer()
+HephResult Renderer::allocate_data_buffer()
 {
         VkBufferCreateInfo info;
         memset(&info, 0, sizeof(VkBufferCreateInfo));
@@ -211,24 +212,38 @@ void Renderer::load_mesh_data()
         memset(&unmap_info, 0, sizeof(VkMemoryUnmapInfoKHR));
         unmap_info.sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO_KHR;
         unmap_info.memory = map_info.memory;
-        
+
         if (vkUnmapMemory2KHR(ldevice, &unmap_info) != VK_SUCCESS)
         {
                 HEPH_ABORT("Failed to unmap memory.");
         }
 }
 
+static uint32_t *compile_vertex_shader(size_t *size)
+{
+}
+
 void Renderer::render_loop()
 {
+        size_t vertex_shader_size = 0;
+        uint32_t *vertex_shader_src = compile_vertex_shader(&vertex_shader_size);
+
+        size_t  fragment_shader_size = 0;
+        uint32_t *fragment_shader_src = compile_fragment_shader();
+
+        size_t culler_shader_size = 0;
+        uint32_t *culler_shader_src = compile_culler_shader();
+
+        if (!vertex_shader_size || !fragment_shader_size || !culler_shader_size)
+        {
+                HEPH_ABORT("Failed to compile shaders.")
+        }
+
+        
 
 
         while (!glfwWindowShouldClose(window))
         {
-                
-
-
-
-
         }
 }
 

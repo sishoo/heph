@@ -23,6 +23,7 @@ int main()
         r.render_loop();
 
         in setup of renderer make shaders compile
+        make handle stuff
 
         return 0;
 }
