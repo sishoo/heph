@@ -204,4 +204,3 @@ heph_read_file_to(void *const dest, size_t *const size, const std::string &path)
 
         return HephResult::Success;
 }
-

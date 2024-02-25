@@ -2,20 +2,13 @@
 
 #include <stdint.h>
 
-
-template<typename T>
+template <typename T>
 class NoInit
 {
 public:
-    T filler;
-    NoInit() {}
+        T filler;
+        NoInit() {}
 };
-
-
-
-
-
-
 
 /*
 typedef struct NoInit64
@@ -47,4 +40,3 @@ typedef struct NoInit96
 
 
 */
-

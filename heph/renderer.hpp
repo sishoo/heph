@@ -9,46 +9,45 @@
 
 #include <vector>
 
-struct Renderer {
+struct Renderer
+{
 public:
-    VkInstance instance;
-    VkSurfaceKHR surface;
-    VkPhysicalDevice pdevice;
-    VkDevice ldevice;
-    VkQueue queue;
-    VkSwapchainKHR swapchain;
+        VkInstance instance;
+        VkSurfaceKHR surface;
+        VkPhysicalDevice pdevice;
+        VkDevice ldevice;
+        VkQueue queue;
+        VkSwapchainKHR swapchain;
 
-    VkBuffer data_buffer;
-    VkDeviceMemory data_buffer_memory;
-    VkDeviceSize vertex_offset;
-    VkDeviceSize index_offset;
-    VkDeviceSize normal_offset;
+        VkBuffer data_buffer;
+        VkDeviceMemory data_buffer_memory;
+        VkDeviceSize vertex_offset;
+        VkDeviceSize index_offset;
+        VkDeviceSize normal_offset;
 
-    Renderer(const Meshes &meshes);
-    ~Renderer();
+        Renderer(const Meshes &meshes);
+        ~Renderer();
 
-    void load_mesh_data();
-    void render_loop();
+        void load_mesh_data();
+        void render_loop();
 
-    void destroy();
+        void destroy();
 
 private:
-    vkb::Instance vkb_instance;
-    GLFWwindow *window;
-    vkb::PhysicalDevice vkb_pdevice;
-    vkb::Device vkb_ldevice;
-    vkb::Swapchain vkb_swapchain;
-    const Meshes &meshes;
+        vkb::Instance vkb_instance;
+        GLFWwindow *window;
+        vkb::PhysicalDevice vkb_pdevice;
+        vkb::Device vkb_ldevice;
+        vkb::Swapchain vkb_swapchain;
+        const Meshes &meshes;
 
-    void init_instance();
-    void init_window(const std::string &name);
-    void init_surface();
-    void init_pdevice();
-    void init_ldevice();
-    void init_queue();
-    void init_swapchain();
+        void init_instance();
+        void init_window(const std::string &name);
+        void init_surface();
+        void init_pdevice();
+        void init_ldevice();
+        void init_queue();
+        void init_swapchain();
 
-    HephResult allocate_data_buffer();
+        HephResult allocate_data_buffer();
 };
-
-

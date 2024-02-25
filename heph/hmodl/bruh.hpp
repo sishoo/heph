@@ -33,10 +33,6 @@ heph_set_hmodl_xattr(const std::string &path, char val[9])
 #endif
 
 #ifdef HEPH_WINDOWS
-        
-
-
-
 
 #endif
 }

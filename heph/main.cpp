@@ -15,15 +15,14 @@
 
 // g++ -g -o main main.cpp -lglfw -lvulkan -std=c++20 -Werror
 
-int 
-main() {
-   
-    auto m = Meshes::from_path("cheburashka (2).obj");
-    auto r = Renderer(m);
-    r.load_mesh_data();
-    r.render_loop();
+int main()
+{
+        auto m = Meshes::from_path("cheburashka (2).obj");
+        auto r = Renderer(m);
+        r.load_mesh_data();
+        r.render_loop();
 
-    change stuff to uint64_t because thats what vkDeviceSize is.
+        in setup of renderer make shaders compile
 
-    return 0;
+        return 0;
 }
