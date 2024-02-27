@@ -1,7 +1,4 @@
-#include "renderer.hpp"
-#include "renderer.cpp"
-#include "meshes.hpp"
-#include "meshes.cpp"
+
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -17,6 +14,8 @@
 
 #include "hephaestus.hpp"
 #include "hephaestus.cpp"
+
+#include "hmodl/hmodl.hpp"
 
 /*
         TODO

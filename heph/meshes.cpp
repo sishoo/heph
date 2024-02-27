@@ -5,6 +5,10 @@
 #include "utils/heph_file_helper.hpp"
 #include "hmodl/hmodl.hpp"
 
+void heph_meshes_init(HephMeshes *const m)
+{
+}
+
 HephResult heph_meshes_queue_hmodl(HephMeshes *const m, const std::string &path)
 {
         if (!heph_file_exists(path))
@@ -27,35 +31,35 @@ HephResult heph_meshes_queue_hmodl(HephMeshes *const m, const std::string &path)
         return HephResult::Success;
 }
 
-// HephResult Meshes::queue_hmodl_batch(const std::vector<const std::string> &batch_paths)
-// {
-//         uint32_t result = static_cast<uint32_t>(HephResult::Success);
-//         paths.reserve(batch_paths.size());
-//         for (const std::string &path : batch_paths)
-//         {
-//                 result &= static_cast<uint32_t>(queue_hmodl(path));
-//         }
-//         return static_cast<HephResult>(result);
-// }
+HephResult heph_meshes_queue_hmodl_batch(HephMeshes *const m, std::vector<const std::string> batch_paths)
+{
+        HephResult result = HephResult::Success;
+        m->paths.reserve(batch_paths.size());
+        for (const std::string path : batch_paths)
+        {
+                result = result & heph_meshes_queue_hmodl(m, path);
+        }
+        return result;
+}
 
-// HephResult Meshes::queue_hmodl_directory(const std::string &dir_path)
-// {
-//         DIR *dir;
-//         struct dirent *ent;
-//         if ((dir = opendir(dir_path.c_str())) == NULL)
-//         {
-//                 HEPH_PRINT_ERROR("Failed to open directory.");
-//                 return HephResult::Failure;
-//         }
-//         while ((ent = readdir(dir)) != NULL)
-//         {
-//                 queue_hmodl(ent->d_name);
-//         }
-//         closedir(dir);
-//         return HephResult::Success;
-// }
+HephResult heph_meshes_queue_hmodl_directory(HephMeshes *const m, const std::string &path)
+{
+        DIR *dir;
+        struct dirent *ent;
+        if ((dir = opendir(path.c_str())) == NULL)
+        {
+                HEPH_PRINT_ERROR("Failed to open directory.");
+                return HephResult::Failure;
+        }
+        while ((ent = readdir(dir)) != NULL)
+        {
+                heph_meshes_queue_hmodl(m, ent->d_name);
+        }
+        closedir(dir);
+        return HephResult::Success;
+}
 
-HephResult heph_meshes_write(HephMeshes *const m, char *ptr)
+HephResult heph_meshes_write(const HephMeshes *const m, char *ptr)
 {
         char *vertex_ptr = ptr;
         char *index_ptr = ptr + m->vertex_tsb;
@@ -102,7 +106,7 @@ HephResult heph_meshes_write(HephMeshes *const m, char *ptr)
         return HephResult::Success;
 }
 
-VkDeviceSize Meshes::size_b() const
+VkDeviceSize heph_meshes_size_b(const HephMeshes *const m)
 {
-        return 2 * vertex_tsb + index_tsb;
+        return 2 * m->vertex_tsb + m->index_tsb;
 }

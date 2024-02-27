@@ -12,14 +12,12 @@
 #endif
 
 #define HEPH_ABORT(err_msg)                                                                              \
-        \ 
+                                                                                                         \
         do                                                                                               \
         {                                                                                                \
                 std::cerr << "Hephaestus Fatal Error: " << err_msg << " @ " << INFO_STRING << std::endl; \
                 abort();                                                                                 \
-        }                                                                                                \
-        while (0)                                                                                        \
-                ;
+        } while (0);
 
 #if HEPH_VALIDATE
 #define NOTE(msg) std::cout << "Note to self: " << msg << std::endl;

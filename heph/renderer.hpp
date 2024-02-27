@@ -10,7 +10,7 @@
 #include <vector>
 
 struct HephRenderer
-{
+{        
         VkInstance instance;
         VkPhysicalDevice pdevice;
         VkDevice ldevice;
@@ -32,16 +32,21 @@ struct HephRenderer
         VkCommandPool command_pool;
         VkCommandBuffer command_buffer;
 
+        VkFence render_fence;
+        VkSemaphore next_image_semaphore;
+
         vkb::Instance vkb_instance;
         vkb::PhysicalDevice vkb_pdevice;
         vkb::Device vkb_ldevice;
         vkb::Swapchain vkb_swapchain;
 
-        const Meshes &meshes;
+        const HephMeshes *const meshes;
 };
 
-void heph_renderer_init(HephRenderer *const r);
+void heph_renderer_init(HephRenderer *const r, const std::string &window_name, int width, int height);
+void heph_renderer_setup(HephRenderer *const r);
 void heph_renderer_run(HephRenderer *const r);
+void heph_renderer_render(HephRenderer *const r);
 void heph_renderer_destroy(HephRenderer *const r);
  
 void heph_renderer_init_instance(HephRenderer *const r);
@@ -53,5 +58,7 @@ void heph_renderer_init_queue(HephRenderer *const r);
 void heph_renderer_init_swapchain(HephRenderer *const r);
 void heph_renderer_init_command_pool(HephRenderer *const r);
 void heph_renderer_allocate_command_buffers(HephRenderer *const r);
+void heph_renderer_init_sync_structures(HephRenderer *const r);
 
-void heph_renderer_rebuild_swapchain(HephRenderer *const r, int width, int height);
+void heph_renderer_rebuild_swapchain(HephRenderer *const r, const std::string &window_name, int width, int height);
+

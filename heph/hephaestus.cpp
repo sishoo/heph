@@ -5,14 +5,13 @@
 
 #include "config.hpp"
 
-#include "renderer.hpp"
 #include "renderer.cpp"
 
 void hephaestus_init(Hephaestus *const heph)
 {
         heph->renderer = (HephRenderer *)malloc(sizeof(HephRenderer));
         memset(heph->renderer, 0, sizeof(HephRenderer));
-        heph_renderer_init(heph->renderer);
+        heph_renderer_init(heph->renderer, "BRO WINDOW", 800, 600);
 
         /*
         if (!init_gui())
@@ -26,28 +25,31 @@ void hephaestus_run(Hephaestus *const heph)
 {
         HephRenderer *r = heph->renderer;
         GLFWwindow *window = heph->renderer->window;
+        
+        heph_renderer_setup(r);
+        
         bool drawing = true;
-
         while (!glfwWindowShouldClose(window))
         {
                 glfwPollEvents();
-                // handle events
-                // if minimize tab / alt tab stop drawing
 
                 int width, height;
                 glfwGetWindowSize(window, &width, &height);
                 if (width != r->window_width || height != r->window_height)
                 {
                         heph_renderer_rebuild_swapchain(r, width, height);
+                        r->window_width = width;
+                        r->window_height = height;
                 }
 
+                drawing = glfwGetWindowAttrib(window, GLFW_FOCUSED);
                 if (!drawing)
                 {
                         std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         continue;
                 }
 
-                // render()
+                heph_renderer_render(r);
         }
 }
 

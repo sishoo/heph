@@ -1,10 +1,10 @@
 #include "renderer.hpp"
+
 #include "utils/heph_error.hpp"
 #include "log/heph_log.hpp"
-#include "meshes.hpp"
 #include "utils/heph_utils.hpp"
+#include "meshes.cpp"
 
-#include "bootstrap/VkBootstrap.h"
 #include "bootstrap/VkBootstrap.cpp"
 
 #include <chrono>
@@ -29,7 +29,7 @@ static void get_buffer_memory_requirements(VkDevice ldevice, VkBuffer buffer, Vk
 
 static uint32_t get_memory_type_index(VkPhysicalDevice pdevice)
 {
-	VkPhysicalDeviceMemoryProperties2 pdevice_properties{};
+	VkPhysicalDeviceMemoryProperties2 pdevice_properties = {};
 	pdevice_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
 	vkGetPhysicalDeviceMemoryProperties2(pdevice, &pdevice_properties);
 
@@ -45,25 +45,26 @@ static uint32_t get_memory_type_index(VkPhysicalDevice pdevice)
 	HEPH_ABORT("Cannot find adequate memory type.");
 }
 
-static void record_submit_command_buffer(VkCommandBuffer buffer, VkQueue queue)
+static void record_submit_command_buffer(VkCommandBuffer buffer, VkQueue queue, auto commands)
 {
-	/*
-		TODO:
-		change the flag bits to say that it will be re recorded;
-		right now we are reusing the command buffer so it does rerecord;
-	*/
-	VkCommandBufferBeginInfo info{};
+	VkCommandBufferBeginInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vkBeginCommandBuffer(buffer, &info);
-	// TODO lambda function pointer thing probably
+        commands(buffer, queue);
 	vkEndCommandBuffer(buffer);
+
+        vkQueueSubmit(queue, 1, );
 }
 
-void heph_renderer_init(HephRenderer *const r)
+void heph_renderer_init(HephRenderer *const r, const std::string &window_name, int width, int height)
 {
 	heph_renderer_init_instance(r);
-	heph_renderer_init_window(r, "BRO WINDOW");
+
+        r->window_width = width;
+        r->window_height = height;
+	heph_renderer_init_window(r, window_name);
+
 	heph_renderer_init_surface(r);
 	heph_renderer_init_pdevice(r);
 	heph_renderer_init_ldevice(r);
@@ -71,6 +72,7 @@ void heph_renderer_init(HephRenderer *const r)
 	heph_renderer_init_swapchain(r);
 	heph_renderer_init_command_pool(r);
 	heph_renderer_allocate_command_buffers(r);
+        heph_renderer_init_sync_structures(r);
 }
 
 void heph_renderer_init_instance(HephRenderer *const r)
@@ -95,7 +97,7 @@ void heph_renderer_init_window(HephRenderer *const r, const std::string &name)
 {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	if ((r->window = glfwCreateWindow(800, 600, name.c_str(), NULL, NULL)) == NULL)
+	if ((r->window = glfwCreateWindow(r->window_width, r->window_height, name.c_str(), NULL, NULL)) == NULL)
 	{
 		HEPH_ABORT("Unable to create window.");
 	}
@@ -173,7 +175,7 @@ void heph_renderer_init_command_pool(HephRenderer *const r)
 		TODO
 		we are using the command reset bit but int he future when we write commands every frame we need to change that
 	*/
-	VkCommandPoolCreateInfo info{};
+	VkCommandPoolCreateInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	info.queueFamilyIndex = r->queue_family_index;
 	info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -186,7 +188,7 @@ void heph_renderer_init_command_pool(HephRenderer *const r)
 
 void heph_renderer_allocate_command_buffers(HephRenderer *const r)
 {
-	VkCommandBufferAllocateInfo info{};
+	VkCommandBufferAllocateInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	info.commandBufferCount = 1;
 	info.commandPool = r->command_pool;
@@ -200,10 +202,10 @@ void heph_renderer_allocate_command_buffers(HephRenderer *const r)
 
 void heph_renderer_allocate_data_buffer(HephRenderer *const r)
 {
-	VkBufferCreateInfo info{};
+	VkBufferCreateInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	info.size = r->meshes.size_b();
-	DEBUG_NOTE("Allocating " << r->meshes.size_b() << " amount of bytes to data buffer.");
+	info.size = heph_meshes_size_b(r->meshes);
+	DEBUG_NOTE("Allocating " << heph_meshes_size_b(r->meshes) << " amount of bytes to data buffer.");
 	info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	info.usage = VK_BUFFER_USAGE_2_INDIRECT_BUFFER_BIT_KHR;
 
@@ -217,39 +219,21 @@ void heph_renderer_allocate_data_buffer(HephRenderer *const r)
 		HEPH_ABORT("Failed to create vkBuffer vertex buffer.");
 	}
 
-	VkMemoryRequirements2 requirements{};
+	VkMemoryRequirements2 requirements = {};
 	get_buffer_memory_requirements(r->ldevice, r->data_buffer, requirements);
 
 	uint32_t index = get_memory_type_index(r->pdevice);
 
-	VkMemoryAllocateInfo allocate_info{};
+	VkMemoryAllocateInfo allocate_info = {};
 	allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocate_info.memoryTypeIndex = index;
-	allocate_info.allocationSize = r->meshes.size_b();
+	allocate_info.allocationSize = heph_meshes_size_b(r->meshes);
 
 	vkAllocateMemory(r->ldevice, &allocate_info, NULL, &r->data_buffer_memory);
 	if (vkBindBufferMemory(r->ldevice, r->data_buffer, r->data_buffer_memory, 0) != VK_SUCCESS)
-		HEPH_ABORT("Binding buffer memory failed.");
-}
-
-void heph_renderer_run(HephRenderer *const r)
-{
-	bool drawing = true;
-	while (!glfwWindowShouldClose(r->window))
-	{
-		glfwPollEvents();
-
-		// handle events
-		// if minimize tab / alt tab stop drawing
-
-		if (!drawing)
-		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			continue;
-		}
-
-		// render()
-	}
+        {
+                HEPH_ABORT("Binding buffer memory failed.");
+        }
 }
 
 void heph_renderer_load_mesh_data(HephRenderer *const r)
@@ -257,7 +241,7 @@ void heph_renderer_load_mesh_data(HephRenderer *const r)
 	heph_renderer_allocate_data_buffer(r);
 	void *ptr = NULL;
 
-	if (vkMapMemory(r->ldevice, r->data_buffer_memory, 0, r->meshes.size_b(), 0, &ptr) != VK_SUCCESS)
+	if (vkMapMemory(r->ldevice, r->data_buffer_memory, 0, heph_meshes_size_b(r->meshes), 0, &ptr) != VK_SUCCESS)
 	{
 		HEPH_ABORT("Failed to map memory.");
 	}
@@ -267,23 +251,97 @@ void heph_renderer_load_mesh_data(HephRenderer *const r)
 		HEPH_ABORT("Failed to map memory.");
 	}
 
-	r->meshes.write(static_cast<char *>(ptr));
+        heph_meshes_write(r->meshes, static_cast<char *>(ptr));
 
 	vkUnmapMemory(r->ldevice, r->data_buffer_memory);
 }
 
 void heph_renderer_rebuild_swapchain(HephRenderer *const r, int width, int height)
-{
+{       
 	vkDeviceWaitIdle(r->ldevice);
 
 	vkb::destroy_swapchain(r->vkb_swapchain);
 	r->swapchain = VK_NULL_HANDLE;
 
+        vkb::SwapchainBuilder builder{r->vkb_ldevice};
+	auto res = builder.build();
+	if (!res)
+	{
+		HEPH_ABORT("recreate swapchain: " << res.error().message());
+	}
+	r->vkb_swapchain = res.value();
+	r->swapchain = r->vkb_swapchain.swapchain;
+
 	/*
 		TODO
-		finish the swap chain recreateion
-		paused on it becuase its a bit of jumping the gun
+		using vkb for the swapchain recreation might not be good i dont know
 	*/
+}
+
+void heph_renderer_init_sync_structures(HephRenderer *const r)
+{
+        VkFenceCreateInfo fence_info = {};
+        fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        if (vkCreateFence(r->ldevice, &fence_info, NULL, &r->render_fence) != VK_SUCCESS)
+        {
+                HEPH_ABORT("A sync structure vital to execution was unable to be made.");
+        }
+
+        VkSemaphoreCreateInfo semaphore_info = {};
+        semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        if (vkCreateSemaphore(r->ldevice, &semaphore_info, NULL, &r->next_image_semaphore) != VK_SUCCESS)
+        {
+                HEPH_ABORT("A sync structure vital to execution was unable to be made.");
+        }
+
+}
+
+static void set_image_swapchain_writeable(VkCommandBuffer buffer, VkImage image)
+{
+        VkImageMemoryBarrier2 image_barrier = {};
+        image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+
+        image_barrier.srcStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        
+}
+
+void heph_renderer_render(HephRenderer *const r)
+{
+        /*
+                TODO 
+                figure out if aborting here is the right call
+        */
+
+        // wait for last frame to be done
+        if (vkWaitForFences(r->ldevice, 1, &r->render_fence, VK_TRUE, 500000000) != VK_SUCCESS)
+        {
+                HEPH_ABORT("I DONT KNOW WHAAT TO PUT HERRE TBH.")
+        }
+        if (vkResetFences(r->ldevice, 1, &r->render_fence) != VK_SUCCESS)
+        {
+                HEPH_ABORT("Failed to reset render fence. This will mess up rendering.");
+        }
+
+        // get next image
+        uint32_t image_index;
+        if (vkAcquireNextImageKHR(r->ldevice, r->swapchain, 500000000, r->next_image_semaphore, NULL, &image_index) != VK_SUCCESS)
+        {
+                HEPH_ABORT("Failed to get image to draw to.");
+        }
+
+
+        auto commands = [](VkCommandBuffer buffer, VkQueue queue)
+        {
+                
+        };
+        record_submit_command_buffer(r->command_buffer, r->queue, commands);
+
+
+        // present image
+
+
+        // if (vkAcquireNextImageKHR(r->ldevice, r->swapchain, 500000000, ))
+
 }
 
 void heph_renderer_destroy(HephRenderer *const r)
@@ -294,6 +352,7 @@ void heph_renderer_destroy(HephRenderer *const r)
 	glfwTerminate();
 
 	/* Do not change ordering */
+        vkDestroyCommandPool(r->ldevice, r->command_pool, NULL);
 	vkFreeMemory(r->ldevice, r->data_buffer_memory, NULL);
 	vkDestroyBuffer(r->ldevice, r->data_buffer, NULL);
 	vkb::destroy_swapchain(r->vkb_swapchain);
