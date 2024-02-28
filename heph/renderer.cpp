@@ -296,13 +296,18 @@ void heph_renderer_init_sync_structures(HephRenderer *const r)
 
 }
 
-static void set_image_swapchain_writeable(VkCommandBuffer buffer, VkImage image)
+static void change_image_layout(VKCommandBuffer buffer, VKImage image, VKImageLayout current, VkImageLayout new)
 {
-        VkImageMemoryBarrier2 image_barrier = {};
-        image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	VkImageMemoryBarrier2 image_barrier = {};
+	image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	
+	image_barrier.srcStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+	image_barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+	image_barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+	image_barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
 
-        image_barrier.srcStageMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-        
+	image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
 }
 
 void heph_renderer_render(HephRenderer *const r)
@@ -333,6 +338,9 @@ void heph_renderer_render(HephRenderer *const r)
         auto commands = [](VkCommandBuffer buffer, VkQueue queue)
         {
                 
+
+		
+		
         };
         record_submit_command_buffer(r->command_buffer, r->queue, commands);
 
