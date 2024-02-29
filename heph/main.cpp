@@ -22,6 +22,14 @@
         make command submiting on another thread, so the main thread does have to do it
         render arbitrary mesh!!!!!!!!
         on application start, query a configuration file that says stuff
+
+        make each entity in the game have a handle: player, enemy, dog, etc
+
+        make a trait system thing
+
+        heph_implement_trait_move(HephGameEntityHandle handle, function ptr to custom implementation);
+        OR
+        heph_trait_implement_move(HephGameEntityHandle handle, HEPH_TRAIT_GENERIC_MOVE);
 */
 
 int main()
