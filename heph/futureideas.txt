@@ -1,9 +1,0 @@
-
-
-
-1) use xaddr to store HMODL info
-2) make load hmodl/obj batch less primative
-3) instead of keeping a std::vector of all the vertices / indices keep it of FDs or paths or something. 
-    use stat and fstat to get sizes. This ties in nicley with xaddr to specific data.
-
-    
