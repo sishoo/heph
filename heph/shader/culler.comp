@@ -1,0 +1,13 @@
+#version 450
+
+layout (push_constant) uniform constants
+{
+        float far_tl, far_tr, far_bl, far_br;
+        float near_tl, near_tr, near_bl, near_br;
+} Frustum;
+
+
+void main()
+{
+        
+}
