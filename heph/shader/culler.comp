@@ -138,6 +138,17 @@ bool frustum_check_object_intersection(Frustum frustum, AABB aabb, mat3 matrix)
 {
         /* KEEP IN MIND LITTLE AND BIG ENDIAN STUFF???????? 
                 problem: what if dot product is 0
+
+                
+                try doing the bresenham frustum spacial hash grid thing
+
+                then once you pull all the relevant grid slots do the math on those.
+
+                write surviving object indeices to buffer.
+
+                when doing the bresenham on a sparse thing use the highest granularity for the bresemham calculation 
+                then when going to pull  object indices just go to the highest granularity that actually exists
+                
         */
 
         AABB transformed_aabb = aabb_multiply_mat3(aabb matrix);
