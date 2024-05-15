@@ -1,0 +1,192 @@
+#version 450
+
+typedef struct 
+{
+        vec4 nw, ne, sw, se;
+} Plane;
+
+layout (push_constant) uniform constants
+{
+        /*
+                TL = top left
+                TR = top right
+                BL = bottom left
+                BR = bottom right
+        */
+        
+        Plane far, near;
+} frustum_planes;
+
+typedef struct 
+{
+        Plane far, near;
+        vec4 far_norm, near_norm, left_norm, right_norml, top_norm, bot_norm;
+} Frustum;
+
+Frustum frustum_init(Plane far, Plane near)
+{
+        Frustum new = {};
+        new.far     = far;
+        new.near    = near;
+
+        /* Calculate plane normals */
+        new.far_norm   = cross(far.nw   - far.ne,   far.nw   - far.sw);
+        new.near_norm  = cross(near.nw  - near.ne,  near.nw  - near.sw);
+        new.top_norm   = cross(top.nw   - top.ne,   top.nw   - top.sw);
+        new.bot_norm   = cross(bot.nw   - bot.ne,   bot.nw   - bot.sw);
+        new.left_norm  = cross(left.nw  - left.ne,  left.nw  - left.sw);
+        new.right_norm = cross(right.nw - right.ne, right.nw - right.sw);
+
+        return new;
+}
+
+/*⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⠀⠐⢤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠴⠈⠁⠀⠀⠀⠀⠈⠑⠦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠔⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠢⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡤⠒⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠲⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠴⠊⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠒⠤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢰⠐⠢⢄⡀⠀⠀⠀⠀  ⠀   ⠀⠀top⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠐⢨⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠈⠑⠢⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠴⠊⠁⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠈⠓⠤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠤⠒⠁⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠒⠤⣀⠀⠀⠀⠠⠔⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠜⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠑⠢⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠔⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠒⢤⣀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⢀⠤⠚⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠑⠢⢄⡀⠀⠀⠀⢸⠀⠀⠀⠀⣠⠴⠊⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠓⠤⡀⠸⢀⠠⠒⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠑⠀⠀⠀⠀⠀
+                            bot ⠀⠀⠀⠀⠀⠀⠀
+
+        Plane: 
+      nw                    ne 
+        *------------------*
+        |                  |                    N
+        |                  |                    |
+        |                  |             W______|______E
+        |                  |                    |
+        |                  |                    |
+        |                  |                    S
+        *------------------*⠀⠀⠀⠀⠀
+      sw                    se
+*/
+typedef struct
+{
+        Plane top, bot;
+} AABB;
+
+
+/*
+
+        THIS IS BAD BECAUSE YOU CANT DO INSTNACING
+        SEPERATE THE MESH DATA AND THE OBJECT DATA SO YOU CAN EASILY INSTANCE STUFF
+
+        Read only inputs : 
+                geometry data:
+                        *---------*----------*---------*
+                        | Indices | Vertices | Normals | 
+                        *---------*----------*---------*
+
+
+                        Object:
+                        {
+                                Mat3 model_matrix;
+                                AABB aabb;
+                                G buffer???;
+                                uint32 index_start, nindices;
+                        }
+
+                        Objects buffer: 
+                        *--------*
+                        | Object |
+                        *--------*
+
+
+        Read / Write output: 
+                Objects index buffer:
+                        *-----------*----------------*
+                        | N objects | Object indices |
+                        *-----------*----------------*
+*/
+
+layout (binding = ) buffer GEOMETRY_DATA_SSBO
+{
+        
+} geometry_data;
+
+layout (binding = ) buffer OBJECT_DATA_SSBO
+{
+        uint nobjects;
+} object_data;
+
+AABB aabb_multiply_mat3(AABB aabb, mat3 mat)
+{       
+        AABB new = {};
+
+        new.top = mat * aabb.top;
+        new.bot = mat * aabb.bot;
+
+        return new;
+}
+
+bool frustum_check_object_intersection(Frustum frustum, AABB aabb, mat3 matrix)
+{
+        /* KEEP IN MIND LITTLE AND BIG ENDIAN STUFF???????? */
+
+        AABB transformed_aabb = aabb_multiply_mat3(aabb matrix);
+
+        float project_top_nw = dot(frustum.far_norm, transformed_aabb.top.nw);
+        float project_bot_se = dot(frustum.far_norm, transformed_aabb.bot.se);
+        if ((project_top_nw >> 31) != (project_bot_se >> 31))
+        {
+                return true;                 
+        }
+
+        float project_top_ne = dot(frustum.far_norm, transformed_aabb.top.ne);
+        float project_bot_sw = dot(frustum.far_norm, transformed_aabb.bot.sw);
+        if ((project_top_ne >> 31) != (project_bot_sw >> 31))
+        {
+                return true;
+        }
+
+        float project_top_sw = dot(frustum.far_norm, transformed_aabb.top.sw);
+        float project_bot_ne = dot(frustum.far_norm, transformed_aabb.bot.ne);
+        if ((project_top_sw >> 31) != (project_bot_ne >> 31))
+        {
+                return true;
+        }
+
+        float project_top_se = dot(frustum.far_norm, transformed_aabb.top.se);
+        float project_bot_nw = dot(frustum.far_norm, transformed_aabb.bot.nw);
+        if ((project_top_se >> 31) != (project_bot_nw >> 31))
+        {
+                return true;
+        }
+
+        return false;
+}
+
+void main()
+{
+        Frustum frustum = frustum_init(frustum_planes.far, frustum_planes.near);
+
+        /* Check for intersection with view frustum */
+        for (uint i = 0; i < object_data.nobjects; i++)
+        {
+                if (frustum_check_object_intersection(frustum, object_data.aabb[i], object_data.model_matrices[i]))
+                {
+                        // models survive frustum culling
+
+                }
+        }
+
+        // further culling
+
+
+
+}       
