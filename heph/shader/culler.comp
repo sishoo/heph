@@ -1,0 +1,82 @@
+#version 450
+
+struct AABB
+{
+        vec4 vertices[8];
+};
+
+#define FAR_NW 0
+#define FAR_NE 1
+#define FAR_SW 2
+#define FAR_SE 3
+#define NEAR_NW 4
+#define NEAR_NE 5
+#define NEAR_SW 6
+#define NEAR_SE 7
+layout (push_constants) uniform FRUSTUM_PUSH_CONSTANTS
+{
+        // [far, near]
+        // [nw, ne, sw, se]
+        vec4 vertices[8];
+} frustum;
+
+
+layout (binding = ) buffer layout_1
+{
+        uint nobjects;
+        Objects objects[];
+} object_data;
+
+AABB aabb_mul_mat3(AABB aabb, mat3 mat)
+{
+        AABB new = {};
+
+        new.top.nw = aabb.top.nw * mat;
+        new.top.ne = aabb.top.ne * mat;
+        new.top.sw = aabb.top.sw * mat;
+        new.top.se = aabb.top.se * mat;
+
+        new.bot.nw = aabb.bot.nw * mat;
+        new.bot.ne = aabb.bot.ne * mat;
+        new.bot.sw = aabb.bot.sw * mat;
+        new.bot.se = aabb.bot.se * mat;
+
+        return new;
+}       
+
+bool frustum_contains_object(AABB aabb, mat3 model_matrix)
+{
+        AABB transformed_aabb = aabb_mul_mat3(aabb, model_matrix);
+
+        for (uint i = 0; i < 8; i++)
+        {
+                vec4 vertex = transformed_aabb.vertices[i];
+
+                /* Checks if the AABB falls in an unspecified depth rectangular volume with the size of the far plane */
+                bool x_contains = frustum[FAR_NW].x <= vertex.x && vertex.x <= frustum[FAR_SE].x;
+                bool y_contains = frustum[FAR_SW].y <= vertex.y && vertex.y <= frustum[FAR_NE].y;
+                bool z_contains = frustum[NEAR_NW].z <= vertex.z && vertex.z <= frustum[FAR_SE].z;
+                if (x_contains && y_contains && z_contains)
+                {
+                        return true;
+                }
+        }
+
+        return false;
+}       
+
+void main()
+{
+        uint id = gl_LocalInvocationId.x;
+        if (id < object_data.nobjects)
+        {       
+                AABB aabb = object_data.objects[id].aabb;
+                mat3 model_matrix = object_data.objects[id].model_matrix;
+                if (!frustum_contains_object(aabb, model_matrix))
+                {
+                        return;
+                }
+
+
+        }
+}
