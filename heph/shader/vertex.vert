@@ -1,11 +1,18 @@
 #version 450
 
-layout (binding = ) uniform objects_data
+layout (push_constants) uniform l0
 {
-        mat3 model_matrix, view_matrix, projection_matrix;
-} object_data;
+        mat4 view_matrix, projection_matrix;
+} transform_matrices;
+
+layout (binding = ) uniform l1
+{
+        uint nobjects;  
+        Object objects[];
+} object_buffer;
 
 void main()
 {
-        gl_Position = projection_matrix * view_matrix * model_matrix * vec4(pos, 1.0);
-}       
+        mat3 model_matrix = object_buffer.objects[gl_InstanceIndex].model_matrix;
+        gl_Position = vec4(vertex_position, 1.0) * model_matrix * view_matrix * projection_matrix;
+}

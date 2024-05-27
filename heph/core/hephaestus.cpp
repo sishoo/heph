@@ -81,25 +81,22 @@ void hephaestus_run(Hephaestus *const heph)
         
         float last_time = 0.0;
         bool drawing = true;
-        uint64_t frame_num = 0;
         while (!glfwWindowShouldClose(window))
         {
-                printf("\n\n==== FRAME: %llu ====\n\n", frame_num);
-                HEPH_DEBUG_NOTE("frame time: " << last_time);
-                float time = glfwGetTime();
-                float delta_time = time - last_time;
+                HEPH_DEBUG_NOTE("Frame time: %f", );
+                float delta_time = glfwGetTime() - last_time;
                 last_time = time;
 
 
                 glfwPollEvents();
 
+
+                /* Check window resize */
                 int width, height;
                 glfwGetWindowSize(window, &width, &height);
                 if (width != r->window_width || height != r->window_height)
                 {
-                        heph_renderer_rebuild_swapchain(r, width, height);
-                        r->window_width = width;
-                        r->window_height = height;
+                        heph_renderer_handle_window_resize(r, width, height);
                 }
 
                 drawing = glfwGetWindowAttrib(window, GLFW_FOCUSED);
@@ -109,8 +106,8 @@ void hephaestus_run(Hephaestus *const heph)
                         continue;
                 }
 
+                
                 heph_renderer_render_frame(r, delta_time);
-                frame_num++;
         }
 }
 

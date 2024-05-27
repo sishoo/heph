@@ -46,8 +46,11 @@ typedef struct
 
 
 
+        float projection_matrix[16];
+
 
         /* Engine Buffers */
+        uint32_t object_buffer_swap; // interpereted as a bool
         VkBuffer geometry_buffer, object_buffer, draw_buffer;
         VkDeviceMemory object_buffer_memory, geometry_buffer_memory, draw_buffer_memory;
         const uint32_t geometry_buffer_memory_type_index, object_buffer_memory_type_index, draw_buffer_memory_type_index;

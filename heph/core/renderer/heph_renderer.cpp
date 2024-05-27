@@ -564,6 +564,7 @@ void heph_renderer_allocate_engine_buffers(HephRenderer *const r)
         vkAllocateMemory(r->ldevice, NULL, NULL, &r->geometry_buffer_device_memory);
 
         /* Initialize object buffer */
+        r->object_buffer_swap = 0;
         uint32_t object_buffer_size_bytes = 2 * nobjects;
 
         VkBufferCreateInfo object_buffer_create_info = {
@@ -588,7 +589,7 @@ void heph_renderer_allocate_engine_buffers(HephRenderer *const r)
         VkBufferCreateInfo draw_buffer_create_info = {
                 .sType VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                 .size = ,
-                .usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT
+                .usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
         };
 
         HEPH_COND_ABORT_NE(vkCreateBuffer(r->ldevice, &draw_buffer_create_info, NULL, r->draw_buffer), VK_SUCCESS);
@@ -622,6 +623,19 @@ void heph_renderer_rebuild_swapchain(HephRenderer *const r, int width, int heigh
 
         heph_renderer_aquire_swapchain_images(r);
 }
+
+void heph_renderer_recalculate_projection_matrix(HephRenderer *const r)
+{
+        
+}
+
+void heph_renderer_handle_window_resize(HephRenderer *const r, int width, int height)
+{
+        r->window_width = width;
+        r->window_height = height;
+        heph_renderer_rebuild_swapchain(r, width, height);
+        heph_renderer_recalculate_projection_matrix(r, );
+}               
 
 
 #ifdef DONT_USE_THIS
@@ -738,9 +752,32 @@ static void translate_image_layout_any_ONLY_USE_THIS_FOR_DEBUGGING_STUFF(VkComma
 #endif
 
 
+void heph_renderer_compute_view_matrix(HephRenderer *const r, float view_matrix[16])
+{
+        /* 
+                TODO we dont even need to keep an individual rotation thing and pos we can just use the same memory
+                to avoid this copying of stuff every frame
+        */
+        view_matrix[0]  = r->camera.rotation_matrix[0];
+        view_matrix[1]  = r->camera.rotation_matrix[1];
+        view_matrix[2]  = r->camera.rotation_matrix[2];
+        view_matrix[3]  = r->camera.pos.x;
+        view_matrix[4]  = r->camera.rotation_matrix[4];
+        view_matrix[5]  = r->camera.rotation_matrix[5];
+        view_matrix[6]  = r->camera.rotation_matrix[6];
+        view_matrix[7]  = r->camera.pos.y;
+        view_matrix[8]  = r->camera.rotation_matrix[8];
+        view_matrix[9]  = r->camera.rotation_matrix[9];
+        view_matrix[10] = r->camera.rotation_matrix[10];
+        view_matrix[11] = r->camera.rotation_matrix[11];
+        view_matrix[12] = r->camera.pos.z;
+        // ...
+        view_matrix[16] = 1;
+}
+
 /* This is to actually render. Call this in a loop. */
 void heph_renderer_render_frame(HephRenderer *const r, float delta_time)
-{               
+{       
         uint32_t resource_index = (r->prev_resource_index + 1) * !(r->prev_resource_index + 1 == r->swapchain_nimages);
         // uint32_t resource_index = (r->prev_resource_index + 1) % r->swapchain_nimages;
 
@@ -767,6 +804,7 @@ void heph_renderer_render_frame(HephRenderer *const r, float delta_time)
 
         /* Dispatch culling compute shader */ 
         vkCmdBindPipeline(frame_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline);
+        vkCmdPushConstants(frame_command_buffer, , VK_SHADER_STAGE_COMPUTE_BIT, 0, 128, the frustum data);
         vkCmdDispatch(frame_command_buffer, ceil(nobjects / 16), 1, 1);
 
         /* Sync access to draw buffer */
@@ -813,15 +851,22 @@ void heph_renderer_render_frame(HephRenderer *const r, float delta_time)
 
         vkCmdPipelineBarrier2(frame_command_buffer, &barriers_dependency_info);
 
-        /* Bind Geometry Buffer and draw from Draw Buffer */
+        /* Bind required 'graphics' resources */
         vkCmdBindVertexBuffers(frame_command_buffer, 0, 1, r->geometry_buffer, (uint32_t[]){ 0 });
         vkCmdBindIndexBuffer(frame_command_buffer, r->geometry_buffer, vertices + normals sizes, VK_INDEX_TYPE_UINT32);
+        vkCmdBindPipeline(frame_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, r->graphics_pipeline);
+
+        /* Provide the view / projection matrices */
+        float view_matrix[16] = {};
+        heph_renderer_compute_view_matrix(r, &view_matrix);
+        vkCmdPushConstants(frame_command_buffer, );
+
         vkCmdDrawIndexedIndirect(frame_command_buffer, draw_buffer, 0, draw_buffer_nids, sizeof(VkDrawIndexedIndirectCommand));
         
         /* Translate target image: COLOR_ATTACHMENT -> PRESENTABLE */
         VkImageMemoryBarrier2 target_image_memory_barrier = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_NONE, // None is sufficient, aquiring the image is synced
+                .srcStageMask = VK_PIPELINE_STAGE_2_NONE, // None is sufficient, acquiring the image is synced
                 .dstStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                 .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
                 .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
@@ -889,6 +934,7 @@ void heph_renderer_render_frame(HephRenderer *const r, float delta_time)
         HEPH_COND_ABORT_NE(vkQueuePresentKHR(r->queue, &present_info), VK_SUCCESS);
 
         r->prev_resource_index = resource_index;
+        r->object_buffer_swap = !r->object_buffer_swap;
 }
 
 /* Use only for debug mode. The OS is faster at cleaning up. */

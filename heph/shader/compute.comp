@@ -26,7 +26,7 @@ struct AABB
 
 struct Object
 {
-        mat3 model_mat;
+        mat4 model_mat;
         float bounding_radius;
         vec4 pos;
 
@@ -35,7 +35,7 @@ struct Object
 
 layout (binding = ) buffer l1
 {
-        uint nobjects;
+        uint nobjects, swap;
         Object objects[];
 } object_buffer;
 
@@ -56,12 +56,12 @@ layout (binding = ) buffer l2
 
 void main()
 {
-        uint id = gl_LocalInvocationId.x;
-
-        if (objects.nobjects < id)
+        if (objects.nobjects < gl_LocalInvocationId.x)
         {
                 return;
         }
+
+        uint id = gl_LocalInvocationId.x + object_buffer.nobjects * object_buffer.swap;
 
         Object object = object_buffer.objects[id];
 
@@ -95,5 +95,5 @@ void main()
         draw_buffer.cmds[draw_index].instance_count = 1;
         draw_buffer.cmds[draw_index].first_index = object.index_start;
         draw_buffer.cmds[draw_index].vertex_offset = object.vertex_start;
-        draw_buffer.cmds[draw_index].first_instance = 0;
+        draw_buffer.cmds[draw_index].first_instance = id;
 }
