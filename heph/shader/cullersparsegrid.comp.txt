@@ -1,0 +1,88 @@
+#version 450
+
+struct Plane
+{
+        vec4 nw, ne, sw, se;
+};
+
+struct AABB
+{
+        Plane top, bot;
+};
+
+struct SparseGrid
+{       
+        uint width, height, ntiers, most_granularity;
+};
+
+layout (push_constants) uniform FRUSTUM_PUSH_CONSTANTS
+{
+        Plane far, near;
+} frustum;
+
+layout (binding = ) buffer OBJECTS_SSBO
+{
+        uint nobjects;
+        SparseGrid object_grid;
+        Object objects[];
+} objects_data;
+
+AABB aabb_multiply_mat3(AABB aabb, mat3 mat)
+{
+        AABB new = {};
+
+        new.top.nw = aabb.top.nw * mat;
+        new.top.ne = aabb.top.ne * mat;
+        new.top.sw = aabb.top.sw * mat;
+        new.top.se = aabb.top.se * mat;
+
+        new.bot.nw = aabb.bot.nw * mat;
+        new.bot.ne = aabb.bot.ne * mat;
+        new.bot.sw = aabb.bot.sw * mat;
+        new.bot.se = aabb.bot.se * mat;
+
+        return new;
+}
+
+bool frustum_contains_object(uint id)
+{       
+        Object object = objects_data.objects[id];
+
+        /* Check if the object is in a grid square the frustum overlaps */
+        // get grid square that object is in 
+        
+
+        // check if that grid square is  in the frustum 
+
+
+
+        /* Check if the frustum contains the object */
+        AABB transformed_aabb = aabb_multiply_mat3(object.aabb, object.model_matrix);
+
+        
+
+        return false;
+}
+
+layout (binding = ) buffer DRAW_SSBO
+{
+        uint insert_cursor;
+        uint object_ids[];
+} draw_buffer;
+
+void main()
+{
+        uint id = gl_GlobalInvocationId.x;
+        if (id < nobjects)
+        {
+                if (!frustum_contains_object(id))
+                {
+                        return; 
+                }
+                
+                
+
+                draw_buffer.object_ids[insert_cursor] = id;
+                atomicAdd(draw_buffer.insert_cursor, 1);
+        }
+}
