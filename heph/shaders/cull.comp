@@ -1,0 +1,102 @@
+#version 450
+
+#extension GL_GOOGLE_include_directive : require
+
+
+#define FAR_NW 0
+#define FAR_NE 1
+#define FAR_SW 2
+#define FAR_SE 3
+#define NEAR_NW 4
+#define NEAR_NE 5
+#define NEAR_SW 6
+#define NEAR_SE 7
+
+struct Object
+{
+        mat4 model_matrix;
+        vec4 pos;
+        uint mesh_id;
+};
+
+struct MeshDescriptor
+{
+        float bounding_radius;
+        uint vertex_start, index_start, nindices;
+};
+
+struct DrawData
+{
+        /* Basically just (mesh_id << 32) | material_id; */
+        // uvec2 draw_hash;
+
+        /* Vulkan command component */
+        uint index_count;
+        uint instance_count;
+        uint first_index;
+        uint vertex_offset;
+        uint first_instance;
+};
+
+layout (push_constant) uniform l0
+{
+        uint swap;
+        vec4 frustum_vertices[8];
+};
+
+
+/* 
+        do an atomic compare exchange for the min camera movement dist
+
+        add a uint seen_last_frame attribute to Object.
+*/
+
+layout (binding = 0) readonly buffer l1
+{
+        uint nobjects;
+        Object objects[];
+} object_buffer;
+
+layout (binding = 1) writeonly buffer l2
+{
+        atomic_uint ndraws;
+        DrawData[] draws;
+} draw_buffer;
+
+layout (binding = 2) readonly buffer l3
+{
+        float vertices[];
+        uint indices[];
+        MeshDescriptor meshes[];
+} geometry_buffer;
+
+void main()
+{
+        if (nobjects < gl_LocalInvocationId.x)
+        {
+                return;
+        }
+
+        uint object_id = gl_LocalInvocationId.x + nobjects * swap;
+
+        Object object = objects[object_id];
+
+        /* Check object intersection with frustum */
+        for (uint i = 0; i < 8; i++)
+        {       
+                if (frustum_vertices[i] - object.pos < meshes[object.mesh_id].bounding_radius)
+                {
+                        /* Update the draw buffer */ 
+                        uint draw_index = atomicCounterIncrement(draw_buffer.ndraws);   
+                        // draws[draw_index].hash = uvec2(object.mesh_id, object.mat_id);
+                        draws[draw_index].index_count = object.nindices;
+                        draws[draw_index].instance_count = 1;
+                        draws[draw_index].first_index = object.index_start;
+                        draws[draw_index].vertex_offset = object.vertex_start;
+                        draws[draw_index].first_instance = id;
+                        break;
+                }
+        }
+
+
+}

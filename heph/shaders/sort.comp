@@ -1,0 +1,66 @@
+#version 450
+
+
+struct Object
+{
+        mat4 model_matrix;
+        vec4 pos;
+        uint mesh_id;
+};
+
+struct MeshDescriptor
+{
+        float bounding_radius;
+        uint vertex_start, index_start, nindices;
+};
+
+struct DrawData
+{
+        /* Basically just (mesh_id << 32) | material_id; */
+        uvec2 draw_hash;
+
+        /* Vulkan command component */
+        uint index_count;
+        uint instance_count;
+        uint first_index;
+        uint vertex_offset;
+        uint first_instance;
+};
+
+layout (binding = 0) readonly buffer l0
+{
+        uint nobjects;
+        Object objects[];
+} object_buffer;
+
+layout (binding = 1) buffer l1
+{
+        atomic_uint ndraws;
+        DrawData[] draws;
+} draw_buffer;
+
+layout (binding = 2) readonly buffer l2
+{
+        float vertices[];
+        uint indices[];
+        MeshDescriptor meshes[];
+} geometry_buffer;
+
+void main()
+{
+        uint id = gl_LocalInvocationId.x;
+
+        if (atomicCounter(ndraws) < id)
+        {
+                return;
+        }
+
+        
+
+
+
+        
+
+
+
+}
