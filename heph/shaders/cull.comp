@@ -81,22 +81,22 @@ void main()
 
         Object object = objects[object_id];
 
-        /* Check object intersection with frustum */
-        for (uint i = 0; i < 8; i++)
-        {       
-                if (frustum_vertices[i] - object.pos < meshes[object.mesh_id].bounding_radius)
-                {
-                        /* Update the draw buffer */ 
-                        uint draw_index = atomicCounterIncrement(draw_buffer.ndraws);   
-                        // draws[draw_index].hash = uvec2(object.mesh_id, object.mat_id);
-                        draws[draw_index].index_count = object.nindices;
-                        draws[draw_index].instance_count = 1;
-                        draws[draw_index].first_index = object.index_start;
-                        draws[draw_index].vertex_offset = object.vertex_start;
-                        draws[draw_index].first_instance = id;
-                        break;
-                }
-        }
+        /* Check object intersection with frustum */   
+        do
+        {
+                float bounding_radius = meshes[object.mesh_id].bounding_radius;
+                if (frustum_vertices[0] - object.pos < bounding_radius) break;
+                if (frustum_vertices[1] - object.pos < bounding_radius) break;
+                if (frustum_vertices[2] - object.pos < bounding_radius) break;
+                if (frustum_vertices[3] - object.pos < bounding_radius) break;
+                if (frustum_vertices[4] - object.pos < bounding_radius) break;
+                if (frustum_vertices[5] - object.pos < bounding_radius) break;
+                if (frustum_vertices[6] - object.pos < bounding_radius) break;
+                if (frustum_vertices[7] - object.pos < bounding_radius) break;
+                return;
+        } while (0);
 
-
-}
+        /* Object is visible */
+        /* Cull index buffer */
+        
+}       

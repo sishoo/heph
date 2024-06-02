@@ -1,28 +1,21 @@
 #pragma once
 
-
 #include "lib/bootstrap/VkBootstrap.h"
-
-#include "../common/error.hpp"
-#include "../core/thread_pool.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <shaderc/shaderc.hpp>
 
+
+
+#include "include/common/error.hpp"
+#include "include/core/thread_pool.h"
+
+
+
 #define HEPH_RENDERER_HELPER_THREAD_COUNT 1
 #define HEPH_RENDERER_COMMAND_BUFFER_RECORDING_THREAD_INDEX 0
-
-
-/* Vulkan queue must contain these bitflags */
-#define HEPH_RENDERER_REQUIRED_MAIN_QUEUE_FAMILY_BITFLAGS (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT)
-
-/* Data buffer memory must adhere to these requirements */ 
-#define HEPH_RENDERER_REQUIRED_GEOMETRY_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
-#define HEPH_RENDERER_REQUIRED_OBJECT_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
-#define HEPH_RENDERER_REQUIRED_DRAW_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
-
 
 
 /* vertex, fragment, compute culler */
@@ -36,12 +29,14 @@
 #define HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION 0
 #define HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL 1
 
-typedef struct 
-{       
-        VkImage image;
-        VkCommandBuffer command_buffer;
-        bool complete;
-} HephFrameCommandBufferRecordingInfo;
+/* Vulkan queue must contain these bitflags */
+#define HEPH_RENDERER_REQUIRED_MAIN_QUEUE_FAMILY_BITFLAGS (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT)
+
+/* Data buffer memory must adhere to these requirements */ 
+#define HEPH_RENDERER_REQUIRED_GEOMETRY_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+#define HEPH_RENDERER_REQUIRED_OBJECT_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+#define HEPH_RENDERER_REQUIRED_DRAW_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+
 
 typedef struct
 {
@@ -50,15 +45,13 @@ typedef struct
         VkSemaphore render_complete_semaphore;
 } heph_frame_render_infos_t;
 
-typedef struct
-{
-        heph_instance_t *parent_instance;        
-        // heph_thread_pool_t *instance_thread_pool;
-        heph_renderer_backend_t *backend;
 
+typedef struct
+{       
+        uint32_t nscenes;
         heph_scene_t *scene;
 
-        /* Core vulkan functionality */
+/* Core vulkan functionality */
         VkInstance instance;
         VkPhysicalDevice pdevice;
         VkDevice ldevice;
@@ -91,12 +84,14 @@ typedef struct
         vkb::Device vkb_ldevice;
         vkb::Swapchain vkb_swapchain;
 } heph_renderer_t;
+          
 
-void heph_renderer_init(heph_renderer_t *const r, uint32_t nviewports, heph_viewport_t *const v);
-void heph_renderer_destroy(heph_renderer_t *const r);
+void heph_renderer_init(heph_renderer_backend_t *const r);
+void heph_renderer_render_frame(heph_renderer_backend_t *const r, heph_render_context_t *const cxt);
+void heph_renderer_resize(heph_renderer_backend_t *const r, uint32_t width, uint32_t height);
+void heph_renderer_destroy(heph_renderer_backend_t *const r);
 
 void heph_renderer_init_instance(heph_renderer_t *const r);
-void heph_renderer_init_window(heph_renderer_t *const r, char *const name);
 void heph_renderer_init_surface(heph_renderer_t *const r);
 void heph_renderer_init_pdevice(heph_renderer_t *const r);
 void heph_renderer_init_ldevice(heph_renderer_t *const r); 
@@ -108,5 +103,9 @@ void heph_renderer_allocate_main_command_buffer(heph_renderer_t *const r);
 void heph_renderer_init_sync_structures(heph_renderer_t *const r);
 void heph_renderer_init_frame_render_infos(heph_renderer_t *const r);
 
+
+
 void heph_renderer_rebuild_swapchain(heph_renderer_t *const r, int width, int height);
+
+
 

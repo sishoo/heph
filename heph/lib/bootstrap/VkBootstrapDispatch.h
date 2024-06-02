@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include </usr/local/include/vulkan/vulkan_core.h>
+#include <vulkan/vulkan_core.h>
 
 namespace vkb
 {

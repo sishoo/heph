@@ -1,13 +1,11 @@
+
+
 #include "include/graphics/renderer.hpp"
-
-
 
 #include "include/common/error.hpp"
 
-
 #include "include/core/log.hpp"
 // #include "include/core/thread_pool.h"
-
 
 #include "include/core/string.hpp"
 #include "lib/bootstrap/VkBootstrap.cpp"
@@ -16,7 +14,7 @@
 
 #include <stdint.h>
 
-void heph_renderer_backend_init(heph_renderer_t *const r, char *const window_name, int width, int height, heph_thread_pool_t *const application_thread_pool)
+void heph_renderer_init(heph_renderer_t *const r, char *const window_name, int width, int height, heph_thread_pool_t *const application_thread_pool)
 {
         heph_renderer_init_instance(r);
         r->window_width = width;
@@ -38,8 +36,6 @@ void heph_renderer_backend_init(heph_renderer_t *const r, char *const window_nam
         heph_renderer_init_sync_structures(r);
         heph_renderer_init_graphics_pipelines(r);
         heph_renderer_init_compute_pipelines(r);
-        heph_renderer_allocate_engine_buffers(r);
-
 }
 
 void heph_renderer_init_instance(heph_renderer_t *const r)
@@ -83,7 +79,7 @@ void heph_renderer_init_pdevice(heph_renderer_t *const r)
         r->pdevice = r->vkb_pdevice.physical_device;
 }
 
-void heph_renderer_find_memory_type_indices(heph_renderer_t *const r)
+void heph_renderer_find_memory_type_indices(heph_renderer_t *const r, )
 {
         VkPhysicalDeviceMemoryProperties physical_device_memory_properties = {};
         vkGetPhysicalDeviceMemoryProperties(r->pdevice, &physical_device_memory_properties);
@@ -562,61 +558,6 @@ VkComputePipelineCreateInfo compute_pipeline_create_info = {
 vkCreateComputePipelines(r->ldevice, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &r->compute_pipeline);
 }
 
-void heph_renderer_allocate_engine_buffers(heph_renderer_t *const r)
-{
-        /* Initialize geometry buffer */
-        uint32_t geometry_buffer_size_bytes = ;
-
-        VkBufferCreateInfo geometry_buffer_create_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = geometry_buffer_size_bytes,
-            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-
-        HEPH_COND_ABORT_NE(vkCreateBuffer(r->ldevice, &geometry_buffer_create_info, NULL, r->geometry_buffer), VK_SUCCESS);
-
-        VkMemoryAllocateInfo geometry_buffer_memory_allocate_info = {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize = geometry_buffer_size_bytes,
-            .memoryTypeIndex = r->geometry_buffer_memory_type_index};
-
-        vkAllocateMemory(r->ldevice, NULL, NULL, &r->geometry_buffer_device_memory);
-
-        /* Initialize object buffer */
-        r->object_buffer_swap = 0;
-        uint32_t object_buffer_size_bytes = 2 * nobjects;
-
-        VkBufferCreateInfo object_buffer_create_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = object_buffer_size_bytes,
-            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
-
-        HEPH_COND_ABORT_NE(vkCreateBuffer(r->ldevice, &object_buffer_create_info, NULL, r->object_buffer), VK_SUCCESS);
-
-        VkMemoryAllocateInfo object_buffer_memory_allocate_info = {
-            .sType VK_STRUCTURE_TYPE_MEMORTY_ALLOCATE_INFO,
-            .allocationSize = object_buffer_size_bytes,
-            .memoryTypeIndex = r->object_buffer_memory_type_index};
-
-        vkAllocateMemory(r->ldevice, NULL, NULL, &r->object_buffer_device_memory);
-
-        /* Initialize draw buffer */
-        uint32_t draw_buffer_size_bytes = nobjects * sizeof(VkDrawIndexedIndirectCommand);
-
-        VkBufferCreateInfo draw_buffer_create_info = {
-            .sType VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size =,
-            .usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
-
-        HEPH_COND_ABORT_NE(vkCreateBuffer(r->ldevice, &draw_buffer_create_info, NULL, r->draw_buffer), VK_SUCCESS);
-
-        VkMemoryAllocateInfo draw_buffer_memory_allocate_info = {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize = object_buffer_size,
-            .memoryTypeIndex = r->draw_buffer_memory_type_index};
-}
-
 void heph_renderer_rebuild_swapchain(heph_renderer_t *const r, int width, int height)
 {
         /*
@@ -652,11 +593,11 @@ void heph_renderer_render(heph_renderer_t *const r)
 {
         for (uint32_t s = 0; s < r->nscenes; s++)
         {
-                r->current_scene = &r->scenes[s];
+                r->context.scene = &r->scenes[s];
 
-                for (uint32_t c = 0; c < r->current_scene->ncameras; c++)
+                for (uint32_t c = 0; c < r->context.scene.ncamera; c++)
                 {
-                        r->current_camera = &r->current_scene->cameras[c];
+                        r->context.camera = &r->context.scene->cameras[c];
 
                         heph_renderer_render_frame(r);
                 }
@@ -666,6 +607,210 @@ void heph_renderer_render(heph_renderer_t *const r)
 /* Renders a single frame */
 void heph_renderer_render_frame(heph_renderer_t *const r)
 {
+        heph_scene_t *scene = r->context.scene;
+        heph_camera_t *camera = r->context.camera;
+
+        if (++r->resource_index == r->swapchain_nimages)
+        {
+                r->resource_index = 0;
+        }
+
+        VkFence complete_fence = r->frame_render_infos[resource_index].render_complete_fence;
+        VkSemaphore complete_semaphore = r->frame_render_infos[resource_index].render_complete_semaphore;
+        VkCommandBuffer command_buffer = r->frame_render_infos[resource_index].command_buffer;
+
+        /* Make sure the fence we are going to use is not in use */
+        HEPH_COND_ABORT_NE(vkWaitForFences(r->ldevice, 1, &complete_fence, VK_TRUE, HEPH_RENDERER_MAX_TIMEOUT), VK_SUCCESS);
+        HEPH_COND_ABORT_NE(vkResetFences(r->ldevice, 1, &complete_fence), VK_SUCCESS);
+
+        uint32_t image_index;
+        HEPH_COND_ABORT_NE(vkAcquireNextImageKHR(r->ldevice, r->swapchain, HEPH_RENDERER_MAX_TIMEOUT, r->image_acquired_semaphore, NULL, &image_index), VK_SUCCESS);
+        VkImage frame_image = r->swapchain_images[image_index];
+
+        /* Pepare the frame command buffer for recording */
+        VkCommandBufferBeginInfo command_buffer_begin_info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
+
+        vkResetCommandBuffer(command_buffer, 0);
+        vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+
+        /* Get ready to compute cull */
+        /* Dispatch culling compute shader */
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline);
+
+        /* PushConstant the frustum and object buffer swap boolean */
+        camera->__push_constant_padding = scene->object_buffer_swap;
+        vkCmdPushConstants(
+            command_buffer,
+            r->compute_pipeline_layout,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            0,
+            sizeof(heph_camera_t),
+            camera->__push_constant_padding);
+
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline_layout, 0, 3, scene->scene_buffers_descriptor_sets, 0, NULL);
+        vkCmdDispatch(command_buffer, ceil(nobjects / 16), 1, 1);
+
+        /* Sync access to draw buffer */
+        VkBufferMemoryBarrier2 draw_buffer_memory_barrier = {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+                .srcAccessMask =,
+                .dstAccessMask =,
+                .srcQueueFamilyIndex =,
+                .dstQueueFamilyIndex =,
+                .buffer = scene->draw_buffer,
+                .offset = 0,
+                .size = scene->nobjects
+        };
+
+        /* Translate target image: UNDEFINED -> COLOR_ATTACHMENT */
+        VkImageSubresourceRange target_image_subresource_range = {
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+        };
+
+        VkImageMemoryBarrier2 target_image_memory_barrier = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_NONE, // None is sufficient, aquiring the image is synced
+                .dstStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .image = target_image,
+                .subresourceRange = target_image_subresource_range
+        };
+
+        /* Barrier for image transition UNDEFINED -> COLOR_ATTACHMENT and compute culler */
+        VkDependencyInfo barriers_dependency_info = {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .bufferMemoryBarrierCount = 1,
+                .pBufferMemoryBarriers = &draw_buffer_memory_barrier,
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = &target_image_memory_barrier
+        };
+
+        vkCmdPipelineBarrier2(frame_command_buffer, &barriers_dependency_info);
+
+        /* Bind required 'graphics' resources */
+        vkCmdBindVertexBuffers(frame_command_buffer, 0, 1, scene->geometry_buffer.handle, (uint32_t[]){0});
+        vkCmdBindIndexBuffer(frame_command_buffer, scene->geometry_buffer.handle, scene->vertices_size_bytes, VK_INDEX_TYPE_UINT32);
+        vkCmdBindPipeline(frame_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, r->graphics_pipeline);
+
+        /* PushConstant the view / projection matrices */
+        vkCmdPushConstants(
+                frame_command_buffer,
+                r->graphics_pipeline_layout,
+                VK_SHADER_STAGE_VERTEX_BIT,
+                sizeof(camera->view_matrix) + sizeof(uint32_t),
+                sizeof(scene->projection_matrix),
+                scene->projection_matrix;
+        );
+
+        vkCmdBindDescriptorSets(
+                frame_command_buffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                r->graphics_pipeline_layout,
+                0,
+                1,
+                &scene->texture_buffer_descriptor_set,
+                0,
+                NULL
+        );
+
+        for (uint32_t i = 0; i < scene->nobjects; i++)
+        {
+                heph_object_t object = scene->object_buffer_mapped_memory[i];
+                if (!object.is_visible)
+                {
+                        continue;
+                }
+                vkCmdPushConstants(
+                    frame_command_buffer,
+                    r->graphics_pipeline_layout,
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                    sizeof(camera->view_matrix) + sizeof(scene->projection_matrix) + sizeof(uint32_t),
+                    sizeof(uint32_t),
+                    &i);
+        }
+
+        vkCmdDrawIndexedIndirect(command_buffer, scene->draw_buffer, 0, , sizeof(vkDrawIndexedIndirectCommand));
+
+        /* Translate target image: COLOR_ATTACHMENT -> PRESENTABLE */
+        VkImageMemoryBarrier2 target_image_memory_barrier = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_NONE, // None is sufficient, acquiring the image is synced
+                .dstStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .image = target_image,
+                .subresourceRange = target_image_subresource_range
+        };
+
+        /* Barrier for image transition COLOR_ATTACHMENT -> PRESENTABLE */
+        // TODO bad name
+        VkDependencyInfo presentation_dependency_info = {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = &target_image_memory_barrier
+        };
+
+        vkCmdPipelineBarrier2(frame_command_buffer, &presentation_dependency_info);
+
+        vkEndCommandBuffer(frame_command_buffer);
+
+        /* Submit the main command buffer */
+        VkCommandBufferSubmitInfoKHR main_command_buffer_submit_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+                .commandBuffer = command_buffer
+        };
+
+        VkSemaphoreSubmitInfo frame_render_complete_semaphore_submit_info = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .semaphore = render_complete_semaphore,
+        };
+
+        VkSemaphoreSubmitInfo submit_info_wait_semaphores_infos[2];
+        submit_info_wait_semaphores_infos[0] = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .semaphore = r->image_acquired_semaphore
+        };
+        submit_info_wait_semaphores_infos[1] = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .semaphore = r->frame_render_infos[r->prev_resource_index].render_complete_semaphore
+        };
+
+        VkSubmitInfo2 submit_info = {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+                .commandBufferInfoCount = 1,
+                .pCommandBufferInfos = &main_command_buffer_submit_info,
+                .signalSemaphoreInfoCount = 1,
+                .pSignalSemaphoreInfos = &frame_render_complete_semaphore_submit_info,
+                .waitSemaphoreInfoCount = (uint32_t)2 - (r->prev_resource_index == UINT32_MAX),
+                .pWaitSemaphoreInfos = submit_info_wait_semaphores_infos
+        };
+
+        HEPH_COND_ABORT_NE(vkQueueSubmit2(r->queue, 1, &submit_info, r->frame_render_infos[resource_index].render_complete_fence), VK_SUCCESS);
+
+        /* Present the frame to the screen */
+        VkPresentInfoKHR present_info = {
+                .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                .swapchainCount = 1,
+                .pSwapchains = &r->swapchain,
+                .waitSemaphoreCount = 1,
+                .pImageIndices = &image_index,
+                .pWaitSemaphores = &render_complete_semaphore,
+        };
+
+        HEPH_COND_ABORT_NE(vkQueuePresentKHR(r->queue, &present_info), VK_SUCCESS);
+
+#ifdef USE_THIS_LATER_BRUH
         heph_scene_t *scene = r->current_scene;
         heph_camera_t *camera = r->current_camera;
 
@@ -686,12 +831,12 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         /* Pepare the frame command buffer for recording */
         VkCommandBufferBeginInfo command_buffer_begin_info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-        };
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
 
         vkResetCommandBuffer(command_buffer, 0);
         vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
 
+        /* Get ready to compute cull */
         /* Dispatch culling compute shader */
         vkCmdBindPipeline(frame_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline);
 
@@ -703,8 +848,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
             VK_SHADER_STAGE_COMPUTE_BIT,
             0,
             sizeof(heph_camera_t),
-            &r->current_camera->__push_constant_padding
-        );
+            &r->current_camera->__push_constant_padding);
 
         vkCmdBindDescriptorSets(frame_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline_layout, 0, 3, &r->geometry_buffer_descriptor, 0, NULL);
         vkCmdDispatch(frame_command_buffer, ceil(nobjects / 16), 1, 1);
@@ -718,8 +862,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
             .dstQueueFamilyIndex =,
             .buffer = r->draw_buffer,
             .offset = 0,
-            .size = r->nobjects
-        };
+            .size = r->nobjects};
 
         /* Translate target image: UNDEFINED -> COLOR_ATTACHMENT */
         VkImageSubresourceRange target_image_subresource_range = {
@@ -751,9 +894,23 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         vkCmdPipelineBarrier2(frame_command_buffer, &barriers_dependency_info);
 
         /* Bind required 'graphics' resources */
-        vkCmdBindVertexBuffers(frame_command_buffer, 0, 1, scene->geometry_buffer (uint32_t[]){ 0 });
+        vkCmdBindVertexBuffers(frame_command_buffer, 0, 1, scene->geometry_buffer(uint32_t[]){0});
         vkCmdBindIndexBuffer(frame_command_buffer, scene->geometry_buffer, scene->vertices_size_bytes, VK_INDEX_TYPE_UINT32);
         vkCmdBindPipeline(frame_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, r->graphics_pipeline);
+
+        /* Gather required textures */
+
+        for (uint32_t i = 0; i < scene->nobjects; i++)
+        {
+                heph_object_t object = scene->objects[i];
+                if (object.is_visible)
+                {
+                        /* Send the texture */
+                        scene->mapped_object_buffer[i].
+                }
+        }
+
+        /* Get ready to draw */
 
         /* PushConstant the view / projection matrices */
         // TODO this doesnt feel right...
@@ -833,6 +990,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         };
 
         HEPH_COND_ABORT_NE(vkQueuePresentKHR(r->queue, &present_info), VK_SUCCESS);
+#endif
 
         r->resource_index = resource_index;
         r->object_buffer_swap = !r->object_buffer_swap;

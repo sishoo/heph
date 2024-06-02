@@ -7,9 +7,17 @@
 
 #include "./camera.h"
 #include "./light.h"
+#include "./mesh.h"
+#include "./gpu_buffer.h"
+#include "./object.h"
+
+#define HEPH_SCENE_GEOMETRY_BUFFER_INDEX 0
+#define HEPH_SCENE_OBJECT_BUFFER_INDEX 1
+#define HEPH_SCENE_DRAW_BUFFER_INDEX 2
+#define HEPH_SCENE_TEXTURE_BUFFER_INDEX 3
 
 typedef struct
-{               
+{             
         uint32_t ncameras, camera_capacity;
         heph_camera_t *cameras; 
 
@@ -19,24 +27,37 @@ typedef struct
         uint32_t nmeshes, meshes_capacity;
         heph_mesh_t *meshes;
 
+        uint32_t nobjects, objects_capacity;
+        heph_object_t *objects;
+
         /* Scene buffers */
-        uint32_t nobjects, object_buffer_swap; // interpereted as a bool
-        VkBuffer geometry_buffer, object_buffer, draw_buffer;
-        VkDeviceMemory geometry_buffer_memory, object_buffer_memory, draw_buffer_memory;
-        VkDescriptorSet geometry_buffer_descriptor, object_buffer_descriptor, draw_buffer_descriptor;
-        const uint32_t geometry_buffer_memory_type_index, object_buffer_memory_type_index, draw_buffer_memory_type_index;
+        uint32_t object_buffer_swap; // interpereted as a bool
+
+        union
+        {
+                heph_gpu_buffer_t geometry_buffer, draw_buffer, object_buffer, texture_buffer;
+                heph_gpu_buffer_t main_buffers[4];
+        };
+
+        void *object_buffer_mapped_memory;
+
+
+        float projection_matrix[16];
 } heph_scene_t;
 
 void heph_scene_init(heph_scene_t *const s);
 void heph_scene_destroy(heph_scene_t *const s);
 
-void heph_scene_allocate_scene_buffers(heph_scene_t *const s);
-void heph_scene_generate_descriptor_sets(heph_scene_t *const s);
-void heph_scene_populate_scene_buffers(heph_scene_t *const s);
+void heph_scene_initialize_main_buffers(heph_scene_t *const s);
+void heph_scene_allocate_main_buffers(heph_scene_t *const s);
+void heph_scene_populate_main_buffers(heph_scene_t *const s);
 
-void heph_scene_add_light(heph_scene_t *const s, heph_light_t *const l);
-void heph_scene_remove_light(heph_scene_t *const s, uint32_t id);
+uint32_t heph_scene_add_light(heph_scene_t *const s, heph_light_t *const light);
+void heph_scene_remove_light(heph_scene_t *const s, uint32_t light_id);
 
-void heph_scene_add_object(heph_scene_t *const s);
-void heph_scene_remove_object(heph_scene_t *const s, uint32_t id);
+uint32_t heph_scene_add_mesh(heph_scene_t *const s, heph_mesh_t *const mesh);
+void heph_scene_remove_mesh(heph_scene_t *const, uint32_t mesh_id);
+
+uint32_t heph_scene_add_object(heph_scene_t *const s, heph_object_t *const object);
+void heph_scene_remove_object(heph_scene_t *const s, uint32_t object_id);
 
