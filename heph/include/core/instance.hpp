@@ -2,7 +2,13 @@
 
 // #include "include/core/thread_pool.h"
 
-#include "include/graphics/renderer.hpp"
+// #include "include/graphics/renderer.hpp"
+#include "/Users/macfarrell/engine/heph/include/graphics/renderer.hpp"
+
+
+#include <shaderc/shaderc.h>
+
+
 
 typedef struct
 {

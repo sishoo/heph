@@ -1,20 +1,16 @@
-
-
-#include "include/graphics/renderer.hpp"
-
 #include "include/common/error.hpp"
-
+#include "include/graphics/renderer.hpp"
 #include "include/core/log.hpp"
 // #include "include/core/thread_pool.h"
-
 #include "include/core/string.hpp"
+#include "include/graphics/gpu_queue.h"
+
 #include "lib/bootstrap/VkBootstrap.cpp"
 
 #include <shaderc/shaderc.hpp>
-
 #include <stdint.h>
 
-void heph_renderer_init(heph_renderer_t *const r, char *const window_name, int width, int height, heph_thread_pool_t *const application_thread_pool)
+void heph_renderer_init(heph_renderer_t *const r, char *const window_name, int width, int height)
 {
         heph_renderer_init_instance(r);
         r->window_width = width;
@@ -121,22 +117,87 @@ void heph_renderer_init_ldevice(heph_renderer_t *const r)
         r->ldevice = r->vkb_ldevice.device;
 }
 
-void heph_renderer_init_queue(heph_renderer_t *const r)
+void heph_renderer_init_queues(heph_renderer_t *const r)
 {
-        uint32_t i = 0;
+        /* First pass to find a queue with everything */
+        uint32_t required = REQUIRED_QUEUE_FAMILY_BITFLAGS, i = 0, nqueues = 0;
         for (VkQueueFamilyProperties props : r->vkb_pdevice.get_queue_families())
         {
                 VkQueueFlags flags = props.queueFlags;
-                if ((flags & REQUIRED_QUEUE_FAMILY_BITFLAGS) == REQUIRED_QUEUE_FAMILY_BITFLAGS)
+                if ((flags & required) == required)
                 {
-                        goto found;
+                        goto found_all;
                 }
                 i++;
+                nqueues++;
         }
-        HEPH_ABORT("Unable to find suitable queue for Hephaestus to use");
-found:
-        r->queue_family_index = i;
-        vkGetDeviceQueue(r->ldevice, i, 0, &r->queue);
+
+        r->nqueues = 1;
+        r->queues = HALLOC(sizeof(VkQueue));
+        vkGetDeviceQueue(r->ldevice, i, 0, r->queues);
+
+#ifdef DONT_USE_THIS
+        while (required)
+        {
+
+        }
+        for (VkQueueFamilyProperties props : r->vkb_pdevice.get_queue_families())
+        {
+                
+        }
+
+
+
+
+
+        /* Second pass to find multiple queues that meet requirements */
+        i = 0;
+        while (required)
+        {
+                uint32_t flag = flags & required;
+                switch (flag)
+                {
+                        case 0:
+                        {
+                                HEPH_ABORT("Unable to find suitable queues.");
+                        }
+                        case VK_QUEUE_GRAPHICS_BIT:    
+                        {
+                                nqueues++;
+                                heph_gpu_queue_t graphics_queue = {     
+                                        .queue_family_index = i
+                                };
+                                vkGetDeviceQueue(r->ldevice, i, 0, &graphics_queue.handle);
+                                break;
+                        } 
+                        case VK_QUEUE_COMPUTE_BIT: 
+                        {
+                                nqueues++;
+                                heph_gpu_queue_t compute_queue = {
+                                        .queue_family_index = i      
+                                };
+                                vkGetDeviceQueue(r->ldevice, i, 0, &compute_queue.handle);
+                                break;
+                        }
+                        case VK_QUEUE_TRANSFER_BIT:
+                        {
+                                nqueues++;
+                                heph_gpu_queue_t transfer_queue = {
+                                        .queue_family_index = i
+                                };
+                                vkGetDeviceQueue(r->ldevice, i, 0, &transfer_queue.handle);
+                                break;
+                        }
+                }
+                required &= !flags;
+                i++;
+        }
+
+        found_all:
+
+
+#endif
+
 }
 
 void heph_renderer_init_swapchain(heph_renderer_t *const r)
@@ -170,17 +231,19 @@ void heph_renderer_init_command_pools(heph_renderer_t *const r)
 {
         /* Main command pool */
         VkCommandPoolCreateInfo main_command_pool_create_info = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .queueFamilyIndex = r->queue_family_index,
-            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT};
+                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .queueFamilyIndex = r->queue_family_index,
+                .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+        };
 
         HEPH_COND_ABORT_NE(vkCreateCommandPool(r->ldevice, &main_command_pool_create_info, NULL, &r->main_command_pool), VK_SUCCESS);
 
         /* Recording thread command pool */
         VkCommandPoolCreateInfo command_buffer_recording_command_pool = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = r->queue_family_index};
+                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                .queueFamilyIndex = r->queue_family_index
+        };
 
         VkCommandPool recording_thread_command_pool = VK_NULL_HANDLE;
         HEPH_COND_ABORT_NE(vkCreateCommandPool(r->ldevice, &command_buffer_recording_command_pool, NULL, &r->command_buffer_recording_command_pool), VK_SUCCESS);
@@ -190,34 +253,38 @@ void heph_renderer_init_sync_structures(heph_renderer_t *const r)
 {
         /* Image acquired */
         VkSemaphoreCreateInfo image_acquired_semaphore_info = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
 
         HEPH_COND_ABORT_NE(vkCreateSemaphore(r->ldevice, &image_acquired_semaphore_info, NULL, &r->image_acquired_semaphore), VK_SUCCESS);
 }
 
 void heph_renderer_init_frame_render_infos(heph_renderer_t *const r)
 {
-        r->prev_resource_index = UINT32_MAX;
-        r->frame_render_infos = (HephFrameRenderInfos *)HCALLOC(r->swapchain_nimages, sizeof(HephFrameRenderInfos));
+        r->resource_index = UINT32_MAX;
+        r->frame_render_infos = (heph_frame_render_infos_t *)HCALLOC(r->swapchain_nimages, sizeof(heph_frame_render_infos_t));
 
-        VkFenceCreateInfo frame_render_infos_render_complete_fence_info = {
-            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-            .flags = VK_FENCE_CREATE_SIGNALED_BIT};
+        VkFenceCreateInfo render_complete_fence_info = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                .flags = VK_FENCE_CREATE_SIGNALED_BIT
+        };
 
-        VkSemaphoreCreateInfo frame_render_infos_render_complete_semaphore_info = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        VkSemaphoreCreateInfo render_complete_semaphore_info = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
 
-        VkCommandBufferAllocateInfo frame_render_infos_command_buffer_allocate_info = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = r->command_buffer_recording_command_pool,
-            .commandBufferCount = 1,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY};
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = r->command_buffer_recording_command_pool,
+                .commandBufferCount = 1,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY
+        };
 
         for (uint32_t i = 0; i < r->swapchain_nimages; i++)
         {
-                HEPH_COND_ABORT_NE(vkCreateFence(r->ldevice, &frame_render_infos_render_complete_fence_info, NULL, &r->frame_render_infos[i].render_complete_fence), VK_SUCCESS);
-                HEPH_COND_ABORT_NE(vkCreateSemaphore(r->ldevice, &frame_render_infos_render_complete_semaphore_info, NULL, &r->frame_render_infos[i].render_complete_semaphore), VK_SUCCESS);
-                HEPH_COND_ABORT_NE(vkAllocateCommandBuffers(r->ldevice, &frame_render_infos_command_buffer_allocate_info, &r->frame_render_infos[i].command_buffer), VK_SUCCESS);
+                HEPH_COND_ABORT_NE(vkCreateFence(r->ldevice, &render_complete_fence_info, NULL, &r->frame_render_infos[i].render_complete_fence), VK_SUCCESS);
+                HEPH_COND_ABORT_NE(vkCreateSemaphore(r->ldevice, &render_complete_semaphore_info, NULL, &r->frame_render_infos[i].render_complete_semaphore), VK_SUCCESS);
+                HEPH_COND_ABORT_NE(vkAllocateCommandBuffers(r->ldevice, &command_buffer_allocate_info, &r->frame_render_infos[i].command_buffer), VK_SUCCESS);
         }
 }
 
@@ -308,9 +375,10 @@ void heph_renderer_init_shader_modules(heph_renderer_t *const r)
         heph_renderer_compile_vertex_shader(r->shader_compiler, &vertex_shader_src);
 
         VkShaderModuleCreateInfo vertex_shader_create_info = {
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = vertex_shader_src.sb,
-            .pCode = (uint32_t *)vertex_shader_src.ptr};
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .codeSize = vertex_shader_src.sb,
+                .pCode = (uint32_t *)vertex_shader_src.ptr}
+        ;
 
         /* Fragment shader */
         heph_string_t fragment_shader_src = {};
@@ -319,42 +387,44 @@ void heph_renderer_init_shader_modules(heph_renderer_t *const r)
         heph_renderer_compile_fragment_shader(r->shader_compiler, &fragment_shader_src);
 
         VkShaderModuleCreateInfo fragment_shader_create_info = {
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = fragment_shader_src.sb,
-            .pCode = (uint32_t *)fragment_shader_src.ptr};
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .codeSize = fragment_shader_src.sb,
+                .pCode = (uint32_t *)fragment_shader_src.ptr
+        };
 }
 
 void heph_renderer_init_graphics_pipelines(heph_renderer_t *const r)
 {
-        r->npipelines = 1;
-
         /* Pipeline rendering create info */
         VkFormat color_attachment_format = VK_FORMAT_R32G32B32A32_SFLOAT;
         VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-            .depthAttachmentFormat = VK_FORMAT_R32G32B32_SFLOAT,
-            .colorAttachmentCount = 1,
-            .pColorAttachmentFormats = &color_attachment_format,
-            .stencilAttachmentFormat = VK_FORMAT_R32G32B32_SFLOAT,
-            .viewMask = 0};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+                .depthAttachmentFormat = VK_FORMAT_R32G32B32_SFLOAT,
+                .colorAttachmentCount = 1,
+                .pColorAttachmentFormats = &color_attachment_format,
+                .stencilAttachmentFormat = VK_FORMAT_R32G32B32_SFLOAT,
+                .viewMask = 0
+        };
 
         /* Grahpics pipeline create info */
-        uint32_t ntotal_shaders = r->nadditional_shader_modules + HEPH_RENDERER_NBUILTIN_SHADER_STAGES;
+        uint32_t ntotal_shaders = ;
         VkPipelineShaderStageCreateInfo *shader_stage_create_infos = (VkPipelineShaderStageCreateInfo *)HCALLOC(ntotal_shaders, sizeof(VkPipelineShaderStageCreateInfo));
         /* Vertex shader*/
         shader_stage_create_infos[0] = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .flags = VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = r->vertex_shader_module,
-            .pName = "main"};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .flags = VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT,
+                .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                .module = r->vertex_shader_module,
+                .pName = "main"
+        };
         /* Fragment shader */
         shader_stage_create_infos[1] = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .flags = VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = r->fragment_shader_module,
-            .pName = "main"};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .flags = VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT,
+                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .module = r->fragment_shader_module,
+                .pName = "main"
+        };
 
         /* Vertex input state infos */
         VkVertexInputAttributeDescription vertex_input_attribute_descriptions[2] = {};
@@ -363,100 +433,106 @@ void heph_renderer_init_graphics_pipelines(heph_renderer_t *const r)
         /* Vertex input attribute descriptions */
         /* Position */
         vertex_input_attribute_descriptions[0] = {
-            .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .location = 0,
-            .offset = offsetof(Vertex, pos)};
+                .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .location = 0,
+                .offset = offsetof(Vertex, pos)
+        };
         /* Normal */
         vertex_input_attribute_descriptions[1] = {
-            .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .location = 0,
-            .offset = offsetof(Vertex, normal)};
+                .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .location = 0,
+                .offset = offsetof(Vertex, normal)
+        };
 
         /* Vertex input binding descriptions */
         /* Position */
         vertex_input_binding_descriptions[0] = {
-            .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION,
-            .stride = sizeof(Vec3),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+                .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION,
+                .stride = sizeof(Vec3),
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        };
         /* Normal */
         vertex_input_binding_descriptions[1] = {
-            .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL,
-            .stride = sizeof(Vec3),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+                .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL,
+                .stride = sizeof(Vec3),
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        };
 
         VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = 2,
-            .pVertexBindingDescriptions = vertex_input_binding_descriptions,
-            .vertexAttributeDescriptionCount = 2,
-            .pVertexAttributeDescriptions = vertex_input_attribute_descriptions,
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .vertexBindingDescriptionCount = 2,
+                .pVertexBindingDescriptions = vertex_input_binding_descriptions,
+                .vertexAttributeDescriptionCount = 2,
+                .pVertexAttributeDescriptions = vertex_input_attribute_descriptions,
         };
 
         /* Input assembly state info */
         VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .vertexBindingDescriptionsCount = 2,
-            .pVertexBindingDescriptions = vertex_input_binding_descriptions,
-            .vertexAttributeDescriptionsCount = 2,
-            .pVertexAttributeDescriptions = vertex_input_attribute_descriptions};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .vertexBindingDescriptionsCount = 2,
+                .pVertexBindingDescriptions = &vertex_input_binding_descriptions,
+                .vertexAttributeDescriptionsCount = 2,
+                .pVertexAttributeDescriptions = &vertex_input_attribute_descriptions
+        };
 
         /* Tessellation */
         VkPipelineTessellationStateCreateInfo tessellation_state_create_info = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
-            .pathControlPoints = 0};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
+                .pathControlPoints = 0
+        };
 
         /* Viewport state */
         VkViewport viewport = {
-            .x = 0.0,
-            .y = 0.0,
-            .width = 1920.0,
-            .height = 1080.0,
-            .minDepth = 0.0,
-            .maxDepth = 1.0};
+                .x = 0.0,
+                .y = 0.0,
+                .width = 1920.0,
+                .height = 1080.0,
+                .minDepth = 0.0,
+                .maxDepth = 1.0
+        };
 
         VkRect2D scissor = {
-            .offset = {0, 0},
-            .extent = {1920, 1080}};
+                .offset = {0, 0},
+                .extent = {1920, 1080}
+        };
 
         VkPipelineViewportStateCreateInfo viewport_state_create_info = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .flags =,
-            .viewportCount = HEPH_RENDERER_PIPELINE_VIEWPORT_COUNT,
-            .pViewports = &viewport,
-            .scissorCount = 1,
-            .pScissors = &scissor};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+                .viewportCount = HEPH_RENDERER_PIPELINE_VIEWPORT_COUNT,
+                .pViewports = &viewport,
+                .scissorCount = 1,
+                .pScissors = &scissor
+        };
 
         /* Rasterization State */
+        #warning this is janky come backe and properly do this (EX: cull mode)
         VkPipelineRasterizationStateCreateInfo rasterization_state_create_info = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .flags =,
-            .depthClampEnable =,
-            .rasterizerDiscardEnable =,
-            .polygonMode = VK_POLYGON_MODE_FILL,
-            .cullMode =,
-            .frontFace =,
-            .depthBiasEnable =,
-            .depthBiasConstantFactor =,
-            .depthBiasClamp =,
-            .deptphBiasSlopeFactor =,
-            .lineWidth = 1.0};
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                .depthClampEnable = VK_FALSE,
+                .rasterizerDiscardEnable = VK_FALSE,
+                .polygonMode = VK_POLYGON_MODE_FILL,
+                .cullMode = VK_CULL_MODE_FRONT_FACE,
+                .frontFace = VK_FRONT_FACE_CLOCKWISE,
+                .depthBiasEnable = VK_FALSE,
+                .lineWidth = 1.0
+        };
 
         /* Multisample state */
-        VkPipelineMultisampleStateCreateInfo multisample_state = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .flags = };
+        // VkPipelineMultisampleStateCreateInfo multisample_state = {
+        //         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        //         .flags = 
+        // };
 
         /* Final grahpics pipeline */
         VkGraphicsPipelineCreateInfo pipeline_create_info = {
-            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-            .pNext = &pipeline_rendering_create_info,
-            .flags =,
-            .stageCount = 2,
-            .pStages = shader_stage_create_infos,
-            .pVertexInputState = &vertex_input_state_create_info,
-            .pInputAssemblyState = input_assembly_state_create_info,
+                .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+                .pNext = &pipeline_rendering_create_info,
+                .stageCount = 2,
+                .pStages = shader_stage_create_infos,
+                .pVertexInputState = &vertex_input_state_create_info,
+                .pInputAssemblyState = &input_assembly_state_create_info,
 
         };
 
@@ -473,7 +549,7 @@ void heph_renderer_compile_compute_shader(heph_renderer_t *const r, heph_string_
         shaderc_compile_options_t compile_options = shaderc_compile_options_initialize();
 
         shaderc_compilation_result_t result =
-            shaderc_compile_into_spv(compiler, src->ptr, src->sb, shaderc_compute_shader, "compute_shader", "main", compile_options);
+            shaderc_compile_into_spv(r->shader_compiler, src->ptr, src->sb, shaderc_compute_shader, "compute_shader", "main", compile_options);
 
         HEPH_COND_ABORT_NE(shaderc_result_get_compilation_status(result), shaderc_compilation_status_success);
 
@@ -486,15 +562,16 @@ void heph_renderer_init_compute_pipelines(heph_renderer_t *const r)
 {
         heph_string_t compute_shader_src = {};
         HEPH_COND_ABORT_NE(heph_file_read_to_string(&compute_shader_src, "shader/compute.comp"), true);
-        heph_renderer_preprocess_compute_shader(r->shader_compiler, &compute_shader_src);
-        heph_renderer_compile_compute_shader(r->shader_compiler, &compute_shader_src);
+        heph_renderer_preprocess_compute_shader(r, r->shader_compiler, &compute_shader_src);
+        heph_renderer_compile_compute_shader(r, r->shader_compiler, &compute_shader_src);
 
         /* Shader Module */
         VkShaderModuleCreateInfo compute_shader_module_create_info = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .flags =,
             .codeSize =,
-            .pCode = };
+            .pCode = 
+        };
 
         VkShaderModule compute_shader_module = {};
         vkCreateShaderModule(r->ldevice, &compute_shader_module_create_info, NULL, &compute_shader_module);
@@ -504,58 +581,56 @@ void heph_renderer_init_compute_pipelines(heph_renderer_t *const r)
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage = VK_SHADER_STAGE_COMPUTE_BIT,
             .module = compute_shader_module,
-            .pName = "main"};
+            .pName = "main"
+        };
 
         /* Push constant range */
-        const uint32_t frustum_size = sizeof(float) * 32;
-        const uint32_t object_buffer_swap_size = sizeof(uint);
-
         VkPushConstantRange push_constant_range = {
-                .stageFlags = VK_SHADER_COMPUTE_BIT,
+                .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
                 .offset = 0,
-                .size = frustum_size + object_buffer_swap_size;
-};
+                .size = sizeof(uint32_t) + sizeof(float[6]) + sizeof(float[16])
+        };
 
-/* Descriptor sets */
-VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[];
+        /* Descriptor sets */
+        VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[];
 
-/* Object buffer */
-descriptor_set_layout_bindings[0] = {
-    .binding = 0,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 1,
-    .stageFlags =,
-    .pImmutableSamplers = };
+        /* Object buffer descriptor set */
+        descriptor_set_layout_bindings[0] = {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags =,
+        .pImmutableSamplers = };
 
-VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT,
-    .flags =,
-    .bindingCount =,
-    .pBinding};
+        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT,
+        .flags =,
+        .bindingCount =,
+        .pBinding};
 
-VkDescriptorSetLayout descriptor_set_layout = {};
-vkCreateDescriptorSetLayout(r->ldevice, &descriptor_set_layout_create_info, NULL, &descriptor_set_layout);
+        VkDescriptorSetLayout descriptor_set_layout = {};
+        vkCreateDescriptorSetLayout(r->ldevice, &descriptor_set_layout_create_info, NULL, &descriptor_set_layout);
 
-/* Pipeline layout */
-VkPipelineLayoutCreateInfo compute_pipeline_layout_create_info = {
-    .sType = VK_PIPELINE_LAYOUT_CREATE_INFO,
-    .flags =,
-    .setLayoutCount =,
-    .pSetLayouts =,
-    .pushConstantRangeCount = 1,
-    .pPushConstantRanges = &compute_pipeline_layout_push_constant_range};
+        /* Pipeline layout */
+        VkPipelineLayoutCreateInfo compute_pipeline_layout_create_info = {
+        .sType = VK_PIPELINE_LAYOUT_CREATE_INFO,
+        .flags =,
+        .setLayoutCount =,
+        .pSetLayouts =,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &compute_pipeline_layout_push_constant_range};
 
-vkCreatePipelineLayout(r->ldevice, &compute_pipeline_layout_create_info, NULL, &r->compute_pipeline_layout);
+        vkCreatePipelineLayout(r->ldevice, &compute_pipeline_layout_create_info, NULL, &r->compute_pipeline_layout);
 
-/* Create compute pipeline */
-VkComputePipelineCreateInfo compute_pipeline_create_info = {
-    .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-    .stage = compute_shader_stage_create_info,
-    .layout =,
-    .basePipelineHandle =,
-    .basePipelineIndex = };
+        /* Create compute pipeline */
+        VkComputePipelineCreateInfo compute_pipeline_create_info = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = compute_shader_stage_create_info,
+        .layout =,
+        .basePipelineHandle =,
+        .basePipelineIndex = };
 
-vkCreateComputePipelines(r->ldevice, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &r->compute_pipeline);
+        vkCreateComputePipelines(r->ldevice, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &r->compute_pipeline);
 }
 
 void heph_renderer_rebuild_swapchain(heph_renderer_t *const r, int width, int height)
@@ -647,7 +722,8 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
             VK_SHADER_STAGE_COMPUTE_BIT,
             0,
             sizeof(heph_camera_t),
-            camera->__push_constant_padding);
+            camera->__push_constant_padding
+        );
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline_layout, 0, 3, scene->scene_buffers_descriptor_sets, 0, NULL);
         vkCmdDispatch(command_buffer, ceil(nobjects / 16), 1, 1);
@@ -655,13 +731,13 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         /* Sync access to draw buffer */
         VkBufferMemoryBarrier2 draw_buffer_memory_barrier = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-                .srcAccessMask =,
-                .dstAccessMask =,
-                .srcQueueFamilyIndex =,
+                .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+                .srcQueueFamilyIndex = r->queue_family_index,
                 .dstQueueFamilyIndex =,
                 .buffer = scene->draw_buffer,
                 .offset = 0,
-                .size = scene->nobjects
+                .size = VK_WHOLE_SIZE
         };
 
         /* Translate target image: UNDEFINED -> COLOR_ATTACHMENT */
@@ -735,7 +811,8 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                     sizeof(camera->view_matrix) + sizeof(scene->projection_matrix) + sizeof(uint32_t),
                     sizeof(uint32_t),
-                    &i);
+                    &i
+                );
         }
 
         vkCmdDrawIndexedIndirect(command_buffer, scene->draw_buffer, 0, , sizeof(vkDrawIndexedIndirectCommand));

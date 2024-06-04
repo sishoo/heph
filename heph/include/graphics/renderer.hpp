@@ -7,12 +7,7 @@
 
 #include <shaderc/shaderc.hpp>
 
-
-
 #include "include/common/error.hpp"
-#include "include/core/thread_pool.h"
-
-
 
 #define HEPH_RENDERER_HELPER_THREAD_COUNT 1
 #define HEPH_RENDERER_COMMAND_BUFFER_RECORDING_THREAD_INDEX 0
@@ -48,15 +43,23 @@ typedef struct
 
 typedef struct
 {       
-        uint32_t nscenes;
+        // heph_thread_pool_t *instance_thread_pool;
+
+        shaderc_compiler_t shader_compiler;
+
+        uint32_t resource_index;
+
         heph_scene_t *scene;
 
-/* Core vulkan functionality */
+        /* Core vulkan functionality */
         VkInstance instance;
         VkPhysicalDevice pdevice;
         VkDevice ldevice;
         uint32_t queue_family_index;
         VkQueue queue;
+
+        uint32_t nqueues, graphics_queue_index, compute_queue_index, transfer_queue_index;
+        // heph_gpu_queue_t *queues;
 
         /* Core pipelines */
         VkPipeline graphics_pipeline, compute_pipeline;
@@ -72,6 +75,7 @@ typedef struct
         VkCommandPool main_command_pool;
         VkCommandPool command_buffer_recording_command_pool; /* Dedicated command pool so that you dont have to lock them */
 
+        int window_width, window_height;
         GLFWwindow *window;
         VkSurfaceKHR surface;
         VkSwapchainKHR swapchain;
@@ -86,10 +90,9 @@ typedef struct
 } heph_renderer_t;
           
 
-void heph_renderer_init(heph_renderer_backend_t *const r);
-void heph_renderer_render_frame(heph_renderer_backend_t *const r, heph_render_context_t *const cxt);
-void heph_renderer_resize(heph_renderer_backend_t *const r, uint32_t width, uint32_t height);
-void heph_renderer_destroy(heph_renderer_backend_t *const r);
+void heph_renderer_init(heph_renderer_t *const r, char *const window_name, int width, int height);
+void heph_renderer_render_frame(heph_renderer_t *const r);
+void heph_renderer_destroy(heph_renderer_t *const r);
 
 void heph_renderer_init_instance(heph_renderer_t *const r);
 void heph_renderer_init_surface(heph_renderer_t *const r);
@@ -104,6 +107,7 @@ void heph_renderer_init_sync_structures(heph_renderer_t *const r);
 void heph_renderer_init_frame_render_infos(heph_renderer_t *const r);
 
 
+void heph_renderer_resize(heph_renderer_t *const r, uint32_t width, uint32_t height);
 
 void heph_renderer_rebuild_swapchain(heph_renderer_t *const r, int width, int height);
 

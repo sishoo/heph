@@ -1,0 +1,8 @@
+
+
+
+
+dont have multiple scenes
+put object, geometry, draw buffer back in renderer
+honestly all this stuff is so intertwined with the engine its just better to do a rewrite when i want
+to add the all new stuff
