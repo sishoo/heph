@@ -21,7 +21,7 @@ void heph_scene_initialize_main_buffers(heph_scene_t *const s)
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         };
 
-        HEPH_COND_ABORT_NE(
+        HEPH_ASSERT(
             vkCreateBuffer(
                 r->ldevice,
                 &geometry_buffer_create_info,
@@ -45,7 +45,7 @@ void heph_scene_initialize_main_buffers(heph_scene_t *const s)
             .size = object_buffer_size_bytes,
             .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
 
-        HEPH_COND_ABORT_NE(vkCreateBuffer(r->ldevice, &object_buffer_create_info, NULL, r->object_buffer), VK_SUCCESS);
+        HEPH_ASSERT(vkCreateBuffer(r->ldevice, &object_buffer_create_info, NULL, r->object_buffer), VK_SUCCESS);
 
         VkMemoryAllocateInfo object_buffer_memory_allocate_info = {
             .sType VK_STRUCTURE_TYPE_MEMORTY_ALLOCATE_INFO,
@@ -62,7 +62,7 @@ void heph_scene_initialize_main_buffers(heph_scene_t *const s)
             .size =,
             .usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT};
 
-        HEPH_COND_ABORT_NE(vkCreateBuffer(r->ldevice, &draw_buffer_create_info, NULL, r->draw_buffer), VK_SUCCESS);
+        HEPH_ASSERT(vkCreateBuffer(r->ldevice, &draw_buffer_create_info, NULL, r->draw_buffer), VK_SUCCESS);
 
         VkMemoryAllocateInfo draw_buffer_memory_allocate_info = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -92,7 +92,7 @@ uint32_t heph_scene_add_light(heph_scene_t *const s, heph_light_t *light)
         if (s->light_capacity <=->nlights)
         {
                 s->lights = realloc(s->lights, s->light_capacity * 2);
-                HEPH_COND_ABORT(s->lights, NULL);
+                HEPH_ASSERT(s->lights, NULL);
         }
 
         memcpy(s->lights[s->nlights++], light, sizeof(heph_light_t));
@@ -114,7 +114,7 @@ uint32_t heph_scene_add_object(heph_scene_t *const s, heph_object_t *object)
         if (s->object_capacity <=->nobjects)
         {
                 s->objects = realloc(s->objects, s->object_capacity * 2);
-                HEPH_COND_ABORT(s->objects, NULL);
+                HEPH_ASSERT(s->objects, NULL);
         }
 
         memcpy(s->objects[s->nobjects++], object, sizeof(heph_object_t));

@@ -3,7 +3,7 @@ COMPILER = clang++
 ENTRY_POINT = main.cpp
 BINARY_NAME = main
 
-ALL = $(ENTRY_POINT) -o $(BINARY_NAME) -Wall
+ALL = $(ENTRY_POINT) -o $(BINARY_NAME) -Wall -ferror-limit=100
 
 VULKAN_INCLUDE_PATH = /usr/local/include
 GLFW_INCLUDE_PATH = /usr/local/Cellar/glfw/3.4/include/GLFW

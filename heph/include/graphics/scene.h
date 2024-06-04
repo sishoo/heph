@@ -32,14 +32,11 @@ typedef struct
 
         /* Scene buffers */
         uint32_t object_buffer_swap; // interpereted as a bool
-
         union
         {
                 heph_gpu_buffer_t geometry_buffer, draw_buffer, object_buffer, texture_buffer;
                 heph_gpu_buffer_t main_buffers[4];
         };
-
-        void *object_buffer_mapped_memory;
 
 
         float projection_matrix[16];

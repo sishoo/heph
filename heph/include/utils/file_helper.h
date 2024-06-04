@@ -1,42 +1,43 @@
-// #pragma once
+#pragma once
 
-// #include "./heph_defines.hpp"
-// #include "../types/heph_type_string.hpp"
-// #include "./heph_error.hpp"
+#include "include/common/defines.h"
+#include "include/core/string.h"
+#include "include/common/error.h"
 
-// #include <stdint.h>
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <optional>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-// #include <sys/mman.h>
-// #include <sys/stat.h>
-// #include <unistd.h>
-// #include <fcntl.h>
-// #include <dirent.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <dirent.h>
 
-
-
-// bool heph_file_read_to_string(heph_string_t *const s, char *const path)
-// {
-//         FILE *fptr = fopen(path, "r");
-//         HEPH_COND_ERR_RETURN(fptr, NULL, false);
+bool heph_file_read_to_string(heph_string_t *const s, char *const path)
+{
+        FILE *fptr = fopen(path, "r");
+        if (fptr == NULL)
+                return false;
         
-//         HEPH_COND_ERR_RETURN_NE(fseek(fptr, 0, SEEK_END), 0, false);
 
-//         long flen = 0;
-//         HEPH_COND_ERR_RETURN((flen = ftell(fptr)), -1, false);
+        if (!fseek(fptr, 0, SEEK_END))
+                return false;
 
-//         char *mem = (char *)HCALLOC(flen, sizeof(char));
+        long flen = ftell(fptr);        
+        if (flen == -1)
+                return false;
 
-//         if (fread(mem, 1, flen, fptr) < flen)
-//         {
-//                 HFREE(mem);
-//                 return false;
-//         }
+        char *memory = (char *)HCALLOC(flen, sizeof(char));
+
+        if (fread(memory, 1, flen, fptr) < flen)
+        {
+                HFREE(memory);
+                return false;
+        }
         
-//         s->ptr = mem;
-//         s->sb = flen;
+        s->ptr = memory;
+        s->size_bytes = flen;
 
-//         return true;
-// }
+        return true;
+}

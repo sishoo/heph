@@ -11,7 +11,8 @@ typedef struct
         VkBuffer handle;
         VkDeviceMemory device_memory;
         uint32_t memory_type_index;
-        VkDescriptorSet descriptor_set
+        VkDescriptorSet descriptor_set;
+        void *mapped_ptr;
 } heph_gpu_buffer_t;
 
 bool heph_gpu_buffer_mmap(heph_gpu_buffer_t *const b);

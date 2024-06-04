@@ -1,7 +1,7 @@
 #include "include/core/instance.hpp"
 
-#include "include/common/defines.hpp"
-#include "include/common/error.hpp"
+#include "include/common/defines.h"
+#include "include/common/error.h"
 #include "include/common/hmodl.hpp"
 
 
@@ -10,22 +10,12 @@
 
 void heph_instance_verify_system_compatabiltiy(heph_instance_t *const h)
 {       
-        /*
-                Because of tagged pointer nonsense the program will 
-                only work if the address space 48 bits
-        */
-        assert(sizeof(uint64_t) == sizeof(uintptr_t));
+// static bool HEPH_HMODL_XATTR_AVAILABLE = false;
+// #ifdef HEPH_OSX
+//        HEPH_HMODL_XATTR_AVAILABLE = (1 << pathconf("sample.hmodl", _PC_XATTR_SIZE_BITS)) - 1 >= HMODL_HEADER_SIZE_BYTES;
+// #else
 
-#ifdef __STDC_NO_ATOMICS__
-        HEPH_ABORT("Your computer does not support atomics.");
-#endif
-
-static bool HEPH_HMODL_XATTR_AVAILABLE = false;
-#ifdef HEPH_OSX
-       HEPH_HMODL_XATTR_AVAILABLE = (1 << pathconf("sample.hmodl", _PC_XATTR_SIZE_BITS)) - 1 >= HMODL_HEADER_SIZE_BYTES;
-#else
-
-#endif
+// #endif
 
 }
 
@@ -35,14 +25,14 @@ void heph_instance_init(heph_instance_t *const h)
 
         heph_instance_verify_system_compatabiltiy(h);
         
-        heph_thread_pool_init(h->thread_pool);
-        heph_renderer_init(h->renderer, "BRO WINDOW", 1920, 1080, NULL);
+        // heph_thread_pool_init(h->thread_pool);
+        heph_renderer_init(&h->renderer, "BRO WINDOW", 1920, 1080);
 }
 
 void heph_instance_run(heph_instance_t *const h)
 {
-        heph_renderer_t *const r = heph->renderer;
-        GLFWwindow *const window = heph->renderer->window;
+        heph_renderer_t *const r = &h->renderer;
+        GLFWwindow *const window = r->window;
         
         bool drawing = true;
         float last_time = 0.0;
@@ -67,7 +57,10 @@ void heph_instance_run(heph_instance_t *const h)
                 drawing = glfwGetWindowAttrib(window, GLFW_FOCUSED);
                 if (!drawing)
                 {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        struct timespec req = {
+                                .tv_nsec = 5000
+                        };
+                        nanosleep(&req, NULL);
                         continue;
                 }
 
@@ -81,5 +74,6 @@ void heph_instance_run(heph_instance_t *const h)
 
 void heph_instance_shutdown(heph_instance_t *const h)
 {
-        heph_renderer_destroy(heph->renderer);
+        #warning add thread pool shutdown eventually
+        heph_renderer_destroy(&h->renderer);
 }

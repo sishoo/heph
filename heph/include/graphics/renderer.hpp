@@ -7,7 +7,8 @@
 
 #include <shaderc/shaderc.hpp>
 
-#include "include/common/error.hpp"
+#include "include/common/error.h"
+#include "include/graphics/scene.h"
 
 #define HEPH_RENDERER_HELPER_THREAD_COUNT 1
 #define HEPH_RENDERER_COMMAND_BUFFER_RECORDING_THREAD_INDEX 0
@@ -32,12 +33,23 @@
 #define HEPH_RENDERER_REQUIRED_OBJECT_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
 #define HEPH_RENDERER_REQUIRED_DRAW_BUFFER_MEMORY_TYPE_BITFLAGS (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
 
+#define VK_TRY(try)                                                                   \
+        do                                                                            \
+        {                                                                             \
+                if ((try) != VK_SUCCESS)                                                \
+                {                                                                     \
+                        fprintf(stderr, "Heph Renderer VK_TRY(" #try "); failed.\n"); \
+                        abort();                                                      \
+                }                                                                     \
+        } while (0);
 
 typedef struct
 {
-        VkFence render_complete_fence;
+        VkFence finished_fence;
+        VkSemaphore finished_semaphore;
+        VkSemaphoreSubmitInfo finished_semaphore_submit_info;
+
         VkCommandBuffer command_buffer;
-        VkSemaphore render_complete_semaphore;
 } heph_frame_render_infos_t;
 
 
@@ -47,8 +59,7 @@ typedef struct
 
         shaderc_compiler_t shader_compiler;
 
-        uint32_t resource_index;
-
+        uint32_t object_buffer_swap;
         heph_scene_t *scene;
 
         /* Core vulkan functionality */
@@ -68,7 +79,7 @@ typedef struct
         VkShaderModule vertex_shader_module, fragment_shader_module, compute_shader_module;
 
         /* Auxillary frame data */
-        uint32_t resource_index;
+        uint32_t previous_resource_index;
         VkSemaphore image_acquired_semaphore;
         heph_frame_render_infos_t *frame_render_infos;
 
@@ -79,7 +90,7 @@ typedef struct
         GLFWwindow *window;
         VkSurfaceKHR surface;
         VkSwapchainKHR swapchain;
-        uint32_t swapchain_nimages;
+        uint32_t nswapchain_images;
         VkImage *swapchain_images;
 
         /* VKB */
