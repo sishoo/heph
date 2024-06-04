@@ -6,6 +6,8 @@
 #include "include/graphics/gpu_queue.h"
 #include "include/core/memory.h"
 #include "include/utils/file_helper.h"
+#include "include/math/vector.h"
+#include "include/graphics/vertex.h"
 
 #include "lib/bootstrap/VkBootstrap.cpp"
 
@@ -198,7 +200,7 @@ void heph_renderer_aquire_swapchain_images(heph_renderer_t *const r)
 
         HEPH_NASSERT(vkGetSwapchainImagesKHR(r->ldevice, r->swapchain, &r->nswapchain_images, r->swapchain_images), VK_SUCCESS);
 
-#if HEPH_VALIDATE
+#if HEPH_DEBUG
         for (uint32_t i = 0; i < r->nswapchain_images; i++)
         {
                 printf("Swapchain image %u handle: %p\n", i, r->swapchain_images[i]);
@@ -386,8 +388,7 @@ void heph_renderer_init_graphics_pipelines(heph_renderer_t *const r)
         };
 
         /* Grahpics pipeline create info */
-        uint32_t ntotal_shaders = ;
-        VkPipelineShaderStageCreateInfo *shader_stage_create_infos = (VkPipelineShaderStageCreateInfo *)HCALLOC(ntotal_shaders, sizeof(VkPipelineShaderStageCreateInfo));
+        VkPipelineShaderStageCreateInfo *shader_stage_create_infos = (VkPipelineShaderStageCreateInfo *)HALLOC(2 * sizeof(VkPipelineShaderStageCreateInfo));
         /* Vertex shader*/
         shader_stage_create_infos[0] = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -406,37 +407,37 @@ void heph_renderer_init_graphics_pipelines(heph_renderer_t *const r)
         };
 
         /* Vertex input state infos */
-        VkVertexInputAttributeDescription vertex_input_attribute_descriptions[2] = {};
-        VkVertexInputBindingDescription vertex_input_binding_descriptions[2] = {};
+        VkVertexInputAttributeDescription vertex_input_attribute_descriptions[2];
+        VkVertexInputBindingDescription vertex_input_binding_descriptions[2];
 
-        /* Vertex input attribute descriptions */
+        /* Vertex input ATTRIBUTE descriptions */
         /* Position */
         vertex_input_attribute_descriptions[0] = {
                 .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION,
                 .format = VK_FORMAT_R32G32B32_SFLOAT,
                 .location = 0,
-                .offset = offsetof(Vertex, pos)
+                .offset = offsetof(heph_vertex_t, position)
         };
-        /* Normal */
+        /* U/V */
         vertex_input_attribute_descriptions[1] = {
-                .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL,
-                .format = VK_FORMAT_R32G32B32_SFLOAT,
-                .location = 0,
-                .offset = offsetof(Vertex, normal)
+                .binding = ,
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .location = ,
+                .offset = offsetof(heph_vertex_t, uv)
         };
 
-        /* Vertex input binding descriptions */
+        /* Vertex input BINDING descriptions */
         /* Position */
         vertex_input_binding_descriptions[0] = {
                 .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION,
-                .stride = sizeof(Vec3),
+                .stride = sizeof(heph_vector3_t),
                 .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
         };
-        /* Normal */
+        /* U/V */
         vertex_input_binding_descriptions[1] = {
-                .binding = HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL,
-                .stride = sizeof(Vec3),
-                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+                .binding = ,
+                .stride = sizeof(heph_vector2_t),
+                .inputeRate = VK_VERTEX_INPUT_RATE_VERTEX
         };
 
         VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {
@@ -457,7 +458,7 @@ void heph_renderer_init_graphics_pipelines(heph_renderer_t *const r)
         /* Tessellation */
         VkPipelineTessellationStateCreateInfo tessellation_state_create_info = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
-                .pathControlPoints = 0
+                .patchControlPoints = 0
         };
 
         /* Viewport state */
@@ -482,6 +483,7 @@ void heph_renderer_init_graphics_pipelines(heph_renderer_t *const r)
                 .scissorCount = 1,
                 .pScissors = &scissor
         };
+       
 
         /* Rasterization State */
         #warning this is janky come backe and properly do this (EX: cull mode)
@@ -543,20 +545,20 @@ void heph_renderer_init_compute_pipelines(heph_renderer_t *const r)
         heph_renderer_compile_compute_shader(r, &compute_shader_src);
 
         /* Shader Module */
-        VkShaderModuleCreateInfo compute_shader_module_create_info = {
+        VkShaderModuleCreateInfo shader_module_create_info = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .codeSize = compute_shader_src.size_bytes,
-            .pCode = (uint32_t *)compute_shader_sr.ptr
+            .pCode = (uint32_t *)compute_shader_src.ptr
         };
 
-        VkShaderModule compute_shader_module = {};
-        VK_TRY(vkCreateShaderModule(r->ldevice, &compute_shader_module_create_info, NULL, &compute_shader_module));
+        VkShaderModule shader_module = {};
+        VK_TRY(vkCreateShaderModule(r->ldevice, &shader_module_create_info, NULL, &shader_module));
 
         /* Shader stage */
-        VkPipelineShaderStageCreateInfo compute_shader_stage_create_info = {
+        VkPipelineShaderStageCreateInfo shader_stage_create_info = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-            .module = compute_shader_module,
+            .module = shader_module,
             .pName = "main"
         };
 
@@ -588,12 +590,12 @@ void heph_renderer_init_compute_pipelines(heph_renderer_t *const r)
         VK_TRY(vkCreateDescriptorSetLayout(r->ldevice, &descriptor_set_layout_create_info, NULL, &descriptor_set_layout));
 
         /* Pipeline layout */
-        VkPipelineLayoutCreateInfo compute_pipeline_layout_create_info = {
-                .sType = VK_PIPELINE_LAYOUT_CREATE_INFO,
+        VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                 .setLayoutCount = 3,
-                .pSetLayouts = descriptor_set_layouts,
+                .pSetLayouts = descriptor_set_layout,
                 .pushConstantRangeCount = 1,
-                .pPushConstantRanges = &pipeline_layout_push_constant_range
+                .pPushConstantRanges = &push_constant_range
         };
 
         VK_TRY(vkCreatePipelineLayout(r->ldevice, &pipeline_layout_create_info, NULL, &r->compute_pipeline_layout));
@@ -601,7 +603,7 @@ void heph_renderer_init_compute_pipelines(heph_renderer_t *const r)
         /* Create compute pipeline */
         VkComputePipelineCreateInfo compute_pipeline_create_info = {
                 .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-                .stage = compute_shader_stage_create_info,
+                .stage = shader_stage_create_info,
                 .layout =,
                 .basePipelineHandle =,
                 .basePipelineIndex = 
@@ -636,21 +638,18 @@ void heph_renderer_handle_window_resize(heph_renderer_t *const r, int width, int
         r->window_width = width;
         r->window_height = height;
         heph_renderer_rebuild_swapchain(r, width, height);
+        #warning gotta do something with a potential viewport_t here
         heph_renderer_recalculate_projection_matrix(r);
 }
 
 void heph_renderer_render(heph_renderer_t *const r)
 {
-        for (uint32_t s = 0; s < r->nscenes; s++)
+        #warning gotta do something with nviewports here
+        for (uint32_t c = 0; c < r->context.scene->ncameras; c++)
         {
-                r->context.scene = &r->scenes[s];
+                r->context.camera = &r->context.scene->cameras[c];
 
-                for (uint32_t c = 0; c < r->context.scene.ncamera; c++)
-                {
-                        r->context.camera = &r->context.scene->cameras[c];
-
-                        heph_renderer_render_frame(r);
-                }
+                heph_renderer_render_frame(r);
         }
 }
 
@@ -669,12 +668,12 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         heph_frame_render_infos_t *frame_infos = &r->frame_render_infos[resource_index];
 
         /* Make sure the fence we are going to use is not in use */
-        HEPH_ASSERT(vkWaitForFences(r->ldevice, 1, &frame_infos->complete_fence, VK_TRUE, HEPH_RENDERER_MAX_TIMEOUT), VK_SUCCESS);
-        HEPH_ASSERT(vkResetFences(r->ldevice, 1, &frame_infos->complete_fence), VK_SUCCESS);
+        HEPH_ASSERT(vkWaitForFences(r->ldevice, 1, &frame_infos->finished_fence, VK_TRUE, HEPH_RENDERER_MAX_TIMEOUT_NS), VK_SUCCESS);
+        HEPH_ASSERT(vkResetFences(r->ldevice, 1, &frame_infos->finished_fence), VK_SUCCESS);
 
         /* Get target image */
         uint32_t image_index;
-        HEPH_ASSERT(vkAcquireNextImageKHR(r->ldevice, r->swapchain, HEPH_RENDERER_MAX_TIMEOUT, r->image_acquired_semaphore, NULL, &image_index), VK_SUCCESS);
+        HEPH_ASSERT(vkAcquireNextImageKHR(r->ldevice, r->swapchain, HEPH_RENDERER_MAX_TIMEOUT_NS, r->image_acquired_semaphore, NULL, &image_index), VK_SUCCESS);
         VkImage target_image = r->swapchain_images[image_index];
 
         /* Pepare the frame command buffer for recording */
@@ -698,20 +697,21 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
                 VK_SHADER_STAGE_COMPUTE_BIT,
                 0,
                 sizeof(heph_camera_t),
-                camera->__push_constant_padding
+                &camera->__push_constant_padding
         );
 
         vkCmdBindDescriptorSets(frame_infos->command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, r->compute_pipeline_layout, 0, 3, scene->scene_buffers_descriptor_sets, 0, NULL);
-        vkCmdDispatch(frame_infos->command_buffer, ceil(nobjects / 16), 1, 1);
+        vkCmdDispatch(frame_infos->command_buffer, ceil(scene->nobjects / 16), 1, 1);
 
         /* Sync access to draw buffer */
+        #warning when you implement the mutltiple quque thing chagne this 
         VkBufferMemoryBarrier2 draw_buffer_memory_barrier = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
                 .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
                 .dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
                 .srcQueueFamilyIndex = r->queue_family_index,
-                .dstQueueFamilyIndex =,
-                .buffer = scene->draw_buffer,
+                .dstQueueFamilyIndex = r->queue_family_index,
+                .buffer = scene->draw_buffer.handle,
                 .offset = 0,
                 .size = VK_WHOLE_SIZE
         };
@@ -749,7 +749,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         vkCmdPipelineBarrier2(frame_infos->command_buffer, &barriers_dependency_info);
 
         /* Bind required 'graphics' resources */
-        vkCmdBindVertexBuffers(frame_infos->command_buffer, 0, 1, &scene->geometry_buffer.handle, (uint32_t[]){0});
+        vkCmdBindVertexBuffers(frame_infos->command_buffer, 0, 1, &scene->geometry_buffer.handle, (VkDeviceSize[]){0});
         vkCmdBindIndexBuffer(frame_infos->command_buffer, scene->geometry_buffer.handle, scene->meshes_size_bytes, VK_INDEX_TYPE_UINT32);
         vkCmdBindPipeline(frame_infos->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, r->graphics_pipeline);
 
@@ -760,7 +760,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
                 VK_SHADER_STAGE_VERTEX_BIT,
                 sizeof(camera->view_matrix) + sizeof(uint32_t),
                 sizeof(scene->projection_matrix),
-                scene->projection_matrix;
+                scene->projection_matrix
         );
 
         vkCmdBindDescriptorSets(
@@ -774,13 +774,16 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
                 NULL
         );
 
+        #warning this will do for now because we arnt batching draws but change later
+        uint32_t ndraws = 0;
         for (uint32_t i = 0; i < scene->nobjects; i++)
         {
-                heph_object_t *object = &(heph_object_t *)scene->object_buffer.mapped_ptr[i];
+                heph_object_t *object = &((heph_object_t *)scene->object_buffer.mapped_ptr)[i];
                 if (!object->is_visible)
                 {
                         continue;
                 }
+                ++ndraws;
                 vkCmdPushConstants(
                     frame_infos->command_buffer,
                     r->graphics_pipeline_layout,
@@ -790,8 +793,8 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
                     &i
                 );
         }
+        vkCmdDrawIndexedIndirect(frame_infos->command_buffer, scene->draw_buffer.handle, 0, ndraws, sizeof(VkDrawIndexedIndirectCommand));
 
-        vkCmdDrawIndexedIndirect(frame_infos->command_buffer, scene->draw_buffer, 0, , sizeof(VkDrawIndexedIndirectCommand));
 
         /* Translate target image: COLOR_ATTACHMENT -> PRESENTABLE */
         VkImageMemoryBarrier2 target_image_memory_barrier2 = {
@@ -819,16 +822,10 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         VK_TRY(vkEndCommandBuffer(frame_infos->command_buffer));
 
         /* Submit the main command buffer */
-        VkCommandBufferSubmitInfoKHR main_command_buffer_submit_info = {
+        VkCommandBufferSubmitInfoKHR command_buffer_submit_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
                 .commandBuffer = frame_infos->command_buffer
         };
-
-        VkSemaphoreSubmitInfo finished_semaphore_submit_info = {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-                .semaphore = frame_infos->finished_semaphore,
-                .flags = 
-        };      
 
         VkSemaphoreSubmitInfo submit_info_wait_semaphores[2] = {};
         /* Wait on image acquired semaphore */
@@ -845,7 +842,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
         VkSubmitInfo2 submit_info = {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
                 .commandBufferInfoCount = 1,
-                .pCommandBufferInfos = &main_command_buffer_submit_info,
+                .pCommandBufferInfos = &command_buffer_submit_info,
                 .signalSemaphoreInfoCount = 1,
                 .pSignalSemaphoreInfos = &frame_infos->finished_semaphore_submit_info,
                 .waitSemaphoreInfoCount = (uint32_t)2 - (r->previous_resource_index == UINT32_MAX),
@@ -1049,7 +1046,7 @@ void heph_renderer_render_frame(heph_renderer_t *const r)
 #endif
 
         r->previous_resource_index = resource_index;
-        r->object_buffer_swap = !r->object_buffer_swap;
+        scene->object_buffer_swap = !scene->object_buffer_swap;
 }
 
 void heph_renderer_init(heph_renderer_t *const r, char *const window_name, int width, int height)
@@ -1079,12 +1076,14 @@ void heph_renderer_init(heph_renderer_t *const r, char *const window_name, int w
 /* Use only for debug mode. The OS is faster at cleaning up. */
 void heph_renderer_destroy(heph_renderer_t *const r)
 {
+#if HEPH_DEBUG
         vkDeviceWaitIdle(r->ldevice);
 
         glfwDestroyWindow(r->window);
         glfwTerminate();
 
         /* Destroy shader modules and free src arrays*/
+        #warning use for loop proabably
         vkDestroyShaderModule(r->ldevice, r->vertex_shader_module, NULL);
         vkDestroyShaderModule(r->ldevice, r->fragment_shader_module, NULL);
         vkDestroyShaderModule(r->ldevice, r->compute_shader_module, NULL);
@@ -1107,17 +1106,17 @@ void heph_renderer_destroy(heph_renderer_t *const r)
         HFREE(r->swapchain_images);
 
 
-
+        #warning is there even supposed to be a main command pool????
         vkDestroyCommandPool(r->ldevice, r->main_command_pool, NULL);
 
 
 
         /* Destroy main buffers */
-        uint32_t nmain_buffers = sizeof(r->scene->main_buffers) / sizeof(r->scene->main_buffers[0]);
+        uint32_t nmain_buffers = sizeof(r->context.scene->main_buffers) / sizeof(r->context.scene->main_buffers[0]);
         for (uint32_t i = 0; i < nmain_buffers; i++)
         {
-                vkFreeMemory(r->ldevice, r->scene->main_buffers[i].device_memory, NULL);
-                vkDestroyBuffer(r->ldevice, r->scene->main_buffers[i].handle, NULL);
+                vkFreeMemory(r->ldevice, r->context.scene->main_buffers[i].device_memory, NULL);
+                vkDestroyBuffer(r->ldevice, r->context.scene->main_buffers[i].handle, NULL);
         }
 
 
@@ -1125,4 +1124,5 @@ void heph_renderer_destroy(heph_renderer_t *const r)
         vkb::destroy_surface(r->vkb_instance, r->surface);
         vkb::destroy_device(r->vkb_ldevice);
         vkb::destroy_instance(r->vkb_instance);
+#endif
 }

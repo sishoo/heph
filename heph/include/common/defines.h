@@ -13,15 +13,11 @@
 #endif
 
 /* Debug/validate mode */
-#ifdef NDEBUG
-#define HEPH_VALIDATE false
-#else
-#define HEPH_VALIDATE true
-#endif
+#define HEPH_DEBUG !(defined (NDEBUG))
 
 /* checks vulkan monitor layer availability */
 #ifdef HEPH_WINDOWS
-#if HEPH_VALIDATE
+#if HEPH_DEBUG
 #define HEPH_MONITOR true
 #endif
 #endif

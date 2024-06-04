@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-#if HEPH_VALIDATE
+#if HEPH_DEBUG
 #define HEPH_PRINT_ERROR(error_message) fprintf(stderr, "Hephaestus runtime error: " error_message);
 #else
 #define HEPH_PRINT_ERROR(error_message)

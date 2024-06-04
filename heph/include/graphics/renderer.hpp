@@ -20,7 +20,6 @@
 /* Maximun renderer timeout allowed */
 #define HEPH_RENDERER_MAX_TIMEOUT_NS 1000000000
 
-
 #define HEPH_RENDERER_PIPELINE_VIEWPORT_COUNT 1
 #define HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_POSITION 0
 #define HEPH_RENDERER_VERTEX_INPUT_ATTR_DESC_BINDING_NORMAL 1
@@ -52,15 +51,20 @@ typedef struct
         VkCommandBuffer command_buffer;
 } heph_frame_render_infos_t;
 
+typedef struct
+{
+        uint32_t object_buffer_swap;
+        heph_scene_t *scene;
+        heph_camera_t *camera;
+} heph_render_context_t;        
 
 typedef struct
 {       
         // heph_thread_pool_t *instance_thread_pool;
 
-        shaderc_compiler_t shader_compiler;
+        heph_render_context_t context;
 
-        uint32_t object_buffer_swap;
-        heph_scene_t *scene;
+        shaderc_compiler_t shader_compiler;
 
         /* Core vulkan functionality */
         VkInstance instance;
