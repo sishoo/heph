@@ -120,7 +120,7 @@ void heph_renderer_init_queues(heph_renderer_t *const r)
 #ifdef DONT_USE_THIS
         while (required)
         {
-
+                
         }
         for (VkQueueFamilyProperties props : r->vkb_pdevice.get_queue_families())
         {
